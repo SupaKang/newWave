@@ -31,6 +31,13 @@ const USER_AGENT_IPHONE =
 const USER_AGENT_ANDROID =
     "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.6099.43 Mobile Safari/537.36";
 
+const KnownUrlSchemes = ["http:", "https:", "file:", "about:", "view-source:", "data:", "blob:"];
+const LocalHostRegex =
+    /^(localhost|[a-z0-9-]+\.local|[a-z0-9.-]+\.localhost|(\d{1,3}\.){3}\d{1,3}|\[[0-9a-f:.]+\])(:\d+)?$/i;
+const SingleLabelWithPortRegex = /^[a-z0-9-]+:\d+$/i;
+const DomainRegex = /^[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}(:\d+)?$/i;
+const ZoomStep = 0.1;
+
 let webviewPreloadUrl = null;
 
 function getWebviewPreloadUrl(env: WebViewEnv) {
@@ -75,6 +82,9 @@ export class WebViewModel implements ViewModel {
     userAgentType: Atom<string>;
     env: WebViewEnv;
     ctrlShiftUnsubFn: (() => void) | null = null;
+    navVersion = atom(0) as PrimitiveAtom<number>;
+    favicon = atom(null) as PrimitiveAtom<string>;
+    pageTitle = atom(null) as PrimitiveAtom<string>;
 
     constructor({ blockId, nodeModel, tabModel, waveEnv }: ViewModelInitType) {
         this.nodeModel = nodeModel;
@@ -95,7 +105,23 @@ export class WebViewModel implements ViewModel {
         this.urlInputFocused = atom(false);
         this.isLoading = atom(false);
         this.refreshIcon = atom("rotate-right");
-        this.viewIcon = atom("globe");
+        this.viewIcon = atom((get) => {
+            const favicon = get(this.favicon);
+            const pageTitle = get(this.pageTitle);
+            if (!favicon && !pageTitle) {
+                return "globe";
+            }
+            const icon = favicon ? (
+                <img
+                    src={favicon}
+                    className="w-[14px] h-[14px] object-contain"
+                    onError={() => globalStore.set(this.favicon, null)}
+                />
+            ) : (
+                "globe"
+            );
+            return { elemtype: "iconbutton", icon, title: pageTitle, noAction: true } as IconButtonDecl;
+        });
         this.viewName = atom("Web");
         this.hideViewName = atom(true);
         this.urlInputRef = createRef<HTMLInputElement>();
@@ -117,6 +143,7 @@ export class WebViewModel implements ViewModel {
             const refreshIcon = get(this.refreshIcon);
             const mediaPlaying = get(this.mediaPlaying);
             const mediaMuted = get(this.mediaMuted);
+            get(this.navVersion);
             const url = currUrl ?? metaUrl ?? homepageUrl ?? "";
             const rtn: HeaderElem[] = [];
             if (get(this.hideNav)) {
@@ -180,7 +207,17 @@ export class WebViewModel implements ViewModel {
             }
             const url = get(this.url);
             const userAgentType = get(this.userAgentType);
+            const zoom = get(this.env.getBlockMetaKeyAtom(blockId, "web:zoom"));
             const buttons: IconButtonDecl[] = [];
+
+            if (zoom != null && zoom != 1) {
+                buttons.push({
+                    elemtype: "iconbutton",
+                    icon: <span className="text-xs">{Math.round(zoom * 100)}%</span>,
+                    title: "Reset Zoom",
+                    click: () => this.setZoomFactor(null),
+                });
+            }
 
             // Add mobile indicator icon if using mobile user agent
             if (userAgentType === "mobile:iphone" || userAgentType === "mobile:android") {
@@ -357,6 +394,12 @@ export class WebViewModel implements ViewModel {
             return;
         }
         if (checkKeyPressed(waveEvent, "Escape")) {
+            try {
+                const curUrl = this.webviewRef.current?.getURL();
+                if (curUrl) {
+                    globalStore.set(this.url, curUrl);
+                }
+            } catch (_) {}
             this.webviewRef.current?.focus();
         }
     }
@@ -385,6 +428,7 @@ export class WebViewModel implements ViewModel {
             })
         );
         globalStore.set(this.url, url);
+        this.bumpNavVersion();
         if (this.searchAtoms) {
             globalStore.set(this.searchAtoms.isOpen, false);
         }
@@ -395,26 +439,21 @@ export class WebViewModel implements ViewModel {
             url = "";
         }
 
-        if (/^(http|https|file):/.test(url)) {
-            // If the URL starts with http: or https:, return it as is
-            return url;
-        }
+        url = url.trim();
+        try {
+            if (KnownUrlSchemes.includes(new URL(url).protocol)) {
+                return url;
+            }
+        } catch (_) {}
 
-        // Check if the URL looks like a local URL
-        const isLocal = /^(localhost|(\d{1,3}\.){3}\d{1,3})(:\d+)?$/.test(url.split("/")[0]);
-
-        if (isLocal) {
-            // If it is a local URL, ensure it has http:// scheme
-            return `http://${url}`;
-        }
-
-        // Check if the URL looks like a domain
-        const domainRegex = /^[a-z0-9.-]+\.[a-z]{2,}$/i;
-        const isDomain = domainRegex.test(url.split("/")[0]);
-
-        if (isDomain) {
-            // If it looks like a domain, ensure it has https:// scheme
-            return `https://${url}`;
+        if (!/\s/.test(url)) {
+            const host = url.split(/[/?#]/)[0];
+            if (LocalHostRegex.test(host) || SingleLabelWithPortRegex.test(host)) {
+                return `http://${url}`;
+            }
+            if (DomainRegex.test(host)) {
+                return `https://${url}`;
+            }
         }
 
         // Otherwise, treat it as a search query
@@ -432,7 +471,7 @@ export class WebViewModel implements ViewModel {
         const defaultSearchAtom = this.env.getSettingsKeyAtom("web:defaultsearch");
         const searchTemplate = globalStore.get(defaultSearchAtom);
         const nextUrl = this.ensureUrlScheme(newUrl, searchTemplate);
-        console.log("webview loadUrl", reason, nextUrl, "cur=", this.webviewRef.current.getURL());
+        console.log("webview loadUrl", reason, nextUrl, "cur=", this.webviewRef.current?.getURL());
         if (!this.webviewRef.current) {
             return;
         }
@@ -481,6 +520,10 @@ export class WebViewModel implements ViewModel {
 
     setRefreshIcon(refreshIcon: string) {
         globalStore.set(this.refreshIcon, refreshIcon);
+    }
+
+    bumpNavVersion() {
+        globalStore.set(this.navVersion, globalStore.get(this.navVersion) + 1);
     }
 
     setIsLoading(isLoading: boolean) {
@@ -545,6 +588,7 @@ export class WebViewModel implements ViewModel {
     clearHistory() {
         try {
             this.webviewRef.current?.clearHistory();
+            this.bumpNavVersion();
         } catch (e) {
             console.error("Failed to clear history", e);
         }
@@ -567,8 +611,28 @@ export class WebViewModel implements ViewModel {
             this.urlInputRef?.current?.select();
             return true;
         }
+        if (checkKeyPressed(e, "Cmd:Shift:r")) {
+            this.webviewRef.current?.reloadIgnoringCache();
+            return true;
+        }
         if (checkKeyPressed(e, "Cmd:r")) {
             this.webviewRef.current?.reload();
+            return true;
+        }
+        if (checkKeyPressed(e, "Escape") && globalStore.get(this.isLoading)) {
+            this.webviewRef.current?.stop();
+            return true;
+        }
+        if (checkKeyPressed(e, "Cmd:=") || checkKeyPressed(e, "Cmd:Shift:=")) {
+            this.zoomBy(ZoomStep);
+            return true;
+        }
+        if (checkKeyPressed(e, "Cmd:-")) {
+            this.zoomBy(-ZoomStep);
+            return true;
+        }
+        if (checkKeyPressed(e, "Cmd:0")) {
+            this.setZoomFactor(null);
             return true;
         }
         if (checkKeyPressed(e, "Cmd:ArrowLeft")) {
@@ -587,10 +651,18 @@ export class WebViewModel implements ViewModel {
         return false;
     }
 
+    zoomBy(delta: number) {
+        if (!globalStore.get(this.domReady)) {
+            return;
+        }
+        const curZoom = this.webviewRef.current?.getZoomFactor() || 1;
+        this.setZoomFactor(Math.round((curZoom + delta) * 10) / 10);
+    }
+
     setZoomFactor(factor: number | null) {
         // null is ok (will reset to default)
-        if (factor != null && factor < 0.1) {
-            factor = 0.1;
+        if (factor != null && factor < 0.25) {
+            factor = 0.25;
         }
         if (factor != null && factor > 5) {
             factor = 5;
@@ -926,6 +998,7 @@ const WebView = memo(({ model, onFailLoad, blockRef, initialSrc }: WebViewProps)
     const domReady = useAtomValue(model.domReady);
 
     const [errorText, setErrorText] = useState("");
+    const [errorUrl, setErrorUrl] = useState("");
 
     function setBgColor() {
         const webview = model.webviewRef.current;
@@ -1022,6 +1095,9 @@ const WebView = memo(({ model, onFailLoad, blockRef, initialSrc }: WebViewProps)
         }
         const navigateListener = (e: any) => {
             setErrorText("");
+            if (e.type == "did-navigate") {
+                globalStore.set(model.favicon, null);
+            }
             if (e.isMainFrame) {
                 model.handleNavigate(e.url);
             }
@@ -1039,6 +1115,7 @@ const WebView = memo(({ model, onFailLoad, blockRef, initialSrc }: WebViewProps)
         const stopLoadingHandler = () => {
             model.setRefreshIcon("rotate-right");
             model.setIsLoading(false);
+            model.bumpNavVersion();
             setBgColor();
         };
         const failLoadHandler = (e: any) => {
@@ -1048,6 +1125,7 @@ const WebView = memo(({ model, onFailLoad, blockRef, initialSrc }: WebViewProps)
                 const errorMessage = `Failed to load ${e.validatedURL}: ${e.errorDescription}`;
                 console.error(errorMessage);
                 setErrorText(errorMessage);
+                setErrorUrl(e.validatedURL);
                 if (onFailLoad) {
                     const curUrl = model.webviewRef.current.getURL();
                     onFailLoad(curUrl);
@@ -1071,6 +1149,12 @@ const WebView = memo(({ model, onFailLoad, blockRef, initialSrc }: WebViewProps)
         const handleMediaPaused = () => {
             model.setMediaPlaying(false);
         };
+        const handleFaviconUpdated = (e: any) => {
+            globalStore.set(model.favicon, e.favicons?.[0] ?? null);
+        };
+        const handleTitleUpdated = (e: any) => {
+            globalStore.set(model.pageTitle, e.title || null);
+        };
 
         webview.addEventListener("did-frame-navigate", navigateListener);
         webview.addEventListener("did-navigate-in-page", navigateListener);
@@ -1085,6 +1169,8 @@ const WebView = memo(({ model, onFailLoad, blockRef, initialSrc }: WebViewProps)
         webview.addEventListener("media-started-playing", handleMediaPlaying);
         webview.addEventListener("media-paused", handleMediaPaused);
         webview.addEventListener("found-in-page", onFoundInPage);
+        webview.addEventListener("page-favicon-updated", handleFaviconUpdated);
+        webview.addEventListener("page-title-updated", handleTitleUpdated);
 
         // Clean up event listeners on component unmount
         return () => {
@@ -1101,6 +1187,8 @@ const WebView = memo(({ model, onFailLoad, blockRef, initialSrc }: WebViewProps)
             webview.removeEventListener("media-started-playing", handleMediaPlaying);
             webview.removeEventListener("media-paused", handleMediaPaused);
             webview.removeEventListener("found-in-page", onFoundInPage);
+            webview.removeEventListener("page-favicon-updated", handleFaviconUpdated);
+            webview.removeEventListener("page-title-updated", handleTitleUpdated);
         };
     }, []);
 
@@ -1123,7 +1211,26 @@ const WebView = memo(({ model, onFailLoad, blockRef, initialSrc }: WebViewProps)
             </MockBoundary>
             {errorText && (
                 <div className="webview-error">
-                    <div>{errorText}</div>
+                    <div>
+                        <span>{errorText}</span>
+                        <span className="flex gap-2 text-sm">
+                            <button
+                                className="px-3 py-1 bg-accent/80 text-primary rounded hover:bg-accent transition-colors cursor-pointer"
+                                onClick={() => {
+                                    setErrorText("");
+                                    fireAndForget(() => model.webviewRef.current?.loadURL(errorUrl));
+                                }}
+                            >
+                                Retry
+                            </button>
+                            <button
+                                className="px-3 py-1 border border-border text-primary rounded hover:bg-hoverbg transition-colors cursor-pointer"
+                                onClick={() => env.electron.openExternal(errorUrl)}
+                            >
+                                Open in Browser
+                            </button>
+                        </span>
+                    </div>
                 </div>
             )}
             <Search {...searchProps} />

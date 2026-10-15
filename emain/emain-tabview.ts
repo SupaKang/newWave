@@ -9,6 +9,7 @@ import { createNewWaveWindow, getWaveWindowById } from "emain/emain-window";
 import path from "path";
 import { configureAuthKeyRequestInjection } from "./authkey";
 import { setWasActive } from "./emain-activity";
+import { setupWebviewGuest } from "./emain-ipc";
 import { getElectronAppBasePath, isDevVite, unamePlatform } from "./emain-platform";
 import {
     decreaseZoomLevel,
@@ -313,6 +314,7 @@ export async function getOrCreateWebViewForTab(waveWindowId: string, tabId: stri
     tabView.webContents.on("will-navigate", shNavHandler);
     tabView.webContents.on("will-frame-navigate", shFrameNavHandler);
     tabView.webContents.on("did-attach-webview", (event, wc) => {
+        setupWebviewGuest(wc, tabView.webContents);
         wc.setWindowOpenHandler((details) => {
             if (wc == null || wc.isDestroyed() || tabView.webContents == null || tabView.webContents.isDestroyed()) {
                 return { action: "deny" };

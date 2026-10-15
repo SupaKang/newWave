@@ -1,7 +1,7 @@
 // Copyright 2025, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { contextBridge, ipcRenderer, Rectangle, webUtils, WebviewTag } from "electron";
+import { contextBridge, ipcRenderer, webUtils, WebviewTag } from "electron";
 
 // update type in custom.d.ts (ElectronApi type)
 contextBridge.exposeInMainWorld("api", {
@@ -76,7 +76,7 @@ contextBridge.exposeInMainWorld("api", {
 // Custom event for "new-window"
 ipcRenderer.on("webview-new-window", (e, webContentsId, details) => {
     const event = new CustomEvent("new-window", { detail: details });
-    document.getElementById("webview").dispatchEvent(event);
+    document.querySelector(`webview[data-webcontentsid="${webContentsId}"]`)?.dispatchEvent(event);
 });
 
 ipcRenderer.on("webcontentsid-from-blockid", (e, blockId, responseCh) => {

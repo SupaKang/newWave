@@ -33,17 +33,11 @@ export function blockViewToIcon(view: string): string {
     if (view == "web") {
         return "globe";
     }
-    if (view == "waveai") {
-        return "sparkles";
-    }
     if (view == "help") {
         return "circle-question";
     }
     if (view == "tips") {
         return "lightbulb";
-    }
-    if (view == "processviewer") {
-        return "microchip";
     }
     return "square";
 }
@@ -61,17 +55,11 @@ export function blockViewToName(view: string): string {
     if (view == "web") {
         return "Web";
     }
-    if (view == "waveai") {
-        return "WaveAI";
-    }
     if (view == "help") {
         return "Help";
     }
     if (view == "tips") {
         return "Tips";
-    }
-    if (view == "processviewer") {
-        return "Processes";
     }
     return view;
 }

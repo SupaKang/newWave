@@ -6,7 +6,6 @@
 package wshclient
 
 import (
-	"github.com/wavetermdev/waveterm/pkg/aiusechat/uctypes"
 	"github.com/wavetermdev/waveterm/pkg/baseds"
 	"github.com/wavetermdev/waveterm/pkg/telemetry/telemetrydata"
 	"github.com/wavetermdev/waveterm/pkg/vdom"
@@ -20,12 +19,6 @@ import (
 // command "activity", wshserver.ActivityCommand
 func ActivityCommand(w *wshutil.WshRpc, data wshrpc.ActivityUpdate, opts *wshrpc.RpcOpts) error {
 	_, err := sendRpcRequestCallHelper[any](w, "activity", data, opts)
-	return err
-}
-
-// command "aisendmessage", wshserver.AiSendMessageCommand
-func AiSendMessageCommand(w *wshutil.WshRpc, data wshrpc.AiMessageData, opts *wshrpc.RpcOpts) error {
-	_, err := sendRpcRequestCallHelper[any](w, "aisendmessage", data, opts)
 	return err
 }
 
@@ -86,12 +79,6 @@ func BlockJobStatusCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts)
 // command "blockslist", wshserver.BlocksListCommand
 func BlocksListCommand(w *wshutil.WshRpc, data wshrpc.BlocksListRequest, opts *wshrpc.RpcOpts) ([]wshrpc.BlocksListEntry, error) {
 	resp, err := sendRpcRequestCallHelper[[]wshrpc.BlocksListEntry](w, "blockslist", data, opts)
-	return resp, err
-}
-
-// command "captureblockscreenshot", wshserver.CaptureBlockScreenshotCommand
-func CaptureBlockScreenshotCommand(w *wshutil.WshRpc, data wshrpc.CommandCaptureBlockScreenshotData, opts *wshrpc.RpcOpts) (string, error) {
-	resp, err := sendRpcRequestCallHelper[string](w, "captureblockscreenshot", data, opts)
 	return resp, err
 }
 
@@ -364,12 +351,6 @@ func FileReadCommand(w *wshutil.WshRpc, data wshrpc.FileData, opts *wshrpc.RpcOp
 	return resp, err
 }
 
-// command "filerestorebackup", wshserver.FileRestoreBackupCommand
-func FileRestoreBackupCommand(w *wshutil.WshRpc, data wshrpc.CommandFileRestoreBackupData, opts *wshrpc.RpcOpts) error {
-	_, err := sendRpcRequestCallHelper[any](w, "filerestorebackup", data, opts)
-	return err
-}
-
 // command "filestream", wshserver.FileStreamCommand
 func FileStreamCommand(w *wshutil.WshRpc, data wshrpc.CommandFileStreamData, opts *wshrpc.RpcOpts) (*wshrpc.FileInfo, error) {
 	resp, err := sendRpcRequestCallHelper[*wshrpc.FileInfo](w, "filestream", data, opts)
@@ -487,24 +468,6 @@ func GetUpdateChannelCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) (string, e
 // command "getvar", wshserver.GetVarCommand
 func GetVarCommand(w *wshutil.WshRpc, data wshrpc.CommandVarData, opts *wshrpc.RpcOpts) (*wshrpc.CommandVarResponseData, error) {
 	resp, err := sendRpcRequestCallHelper[*wshrpc.CommandVarResponseData](w, "getvar", data, opts)
-	return resp, err
-}
-
-// command "getwaveaichat", wshserver.GetWaveAIChatCommand
-func GetWaveAIChatCommand(w *wshutil.WshRpc, data wshrpc.CommandGetWaveAIChatData, opts *wshrpc.RpcOpts) (*uctypes.UIChat, error) {
-	resp, err := sendRpcRequestCallHelper[*uctypes.UIChat](w, "getwaveaichat", data, opts)
-	return resp, err
-}
-
-// command "getwaveaimodeconfig", wshserver.GetWaveAIModeConfigCommand
-func GetWaveAIModeConfigCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) (wconfig.AIModeConfigUpdate, error) {
-	resp, err := sendRpcRequestCallHelper[wconfig.AIModeConfigUpdate](w, "getwaveaimodeconfig", nil, opts)
-	return resp, err
-}
-
-// command "getwaveairatelimit", wshserver.GetWaveAIRateLimitCommand
-func GetWaveAIRateLimitCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) (*uctypes.RateLimitInfo, error) {
-	resp, err := sendRpcRequestCallHelper[*uctypes.RateLimitInfo](w, "getwaveairatelimit", nil, opts)
 	return resp, err
 }
 
@@ -753,18 +716,6 @@ func RemoteMkdirCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts) er
 	return err
 }
 
-// command "remoteprocesslist", wshserver.RemoteProcessListCommand
-func RemoteProcessListCommand(w *wshutil.WshRpc, data wshrpc.CommandRemoteProcessListData, opts *wshrpc.RpcOpts) (*wshrpc.ProcessListResponse, error) {
-	resp, err := sendRpcRequestCallHelper[*wshrpc.ProcessListResponse](w, "remoteprocesslist", data, opts)
-	return resp, err
-}
-
-// command "remoteprocesssignal", wshserver.RemoteProcessSignalCommand
-func RemoteProcessSignalCommand(w *wshutil.WshRpc, data wshrpc.CommandRemoteProcessSignalData, opts *wshrpc.RpcOpts) error {
-	_, err := sendRpcRequestCallHelper[any](w, "remoteprocesssignal", data, opts)
-	return err
-}
-
 // command "remotereconnecttojobmanager", wshserver.RemoteReconnectToJobManagerCommand
 func RemoteReconnectToJobManagerCommand(w *wshutil.WshRpc, data wshrpc.CommandRemoteReconnectToJobManagerData, opts *wshrpc.RpcOpts) (*wshrpc.CommandRemoteReconnectToJobManagerRtnData, error) {
 	resp, err := sendRpcRequestCallHelper[*wshrpc.CommandRemoteReconnectToJobManagerRtnData](w, "remotereconnecttojobmanager", data, opts)
@@ -775,11 +726,6 @@ func RemoteReconnectToJobManagerCommand(w *wshutil.WshRpc, data wshrpc.CommandRe
 func RemoteStartJobCommand(w *wshutil.WshRpc, data wshrpc.CommandRemoteStartJobData, opts *wshrpc.RpcOpts) (*wshrpc.CommandStartJobRtnData, error) {
 	resp, err := sendRpcRequestCallHelper[*wshrpc.CommandStartJobRtnData](w, "remotestartjob", data, opts)
 	return resp, err
-}
-
-// command "remotestreamcpudata", wshserver.RemoteStreamCpuDataCommand
-func RemoteStreamCpuDataCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) chan wshrpc.RespOrErrorUnion[wshrpc.TimeSeriesData] {
-	return sendRpcRequestResponseStreamHelper[wshrpc.TimeSeriesData](w, "remotestreamcpudata", nil, opts)
 }
 
 // command "remoteterminatejobmanager", wshserver.RemoteTerminateJobManagerCommand
@@ -896,11 +842,6 @@ func StopBuilderCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts) er
 	return err
 }
 
-// command "streamcpudata", wshserver.StreamCpuDataCommand
-func StreamCpuDataCommand(w *wshutil.WshRpc, data wshrpc.CpuDataRequest, opts *wshrpc.RpcOpts) chan wshrpc.RespOrErrorUnion[wshrpc.TimeSeriesData] {
-	return sendRpcRequestResponseStreamHelper[wshrpc.TimeSeriesData](w, "streamcpudata", data, opts)
-}
-
 // command "streamdata", wshserver.StreamDataCommand
 func StreamDataCommand(w *wshutil.WshRpc, data wshrpc.CommandStreamData, opts *wshrpc.RpcOpts) error {
 	_, err := sendRpcRequestCallHelper[any](w, "streamdata", data, opts)
@@ -974,30 +915,6 @@ func VDomUrlRequestCommand(w *wshutil.WshRpc, data wshrpc.VDomUrlRequestData, op
 func WaitForRouteCommand(w *wshutil.WshRpc, data wshrpc.CommandWaitForRouteData, opts *wshrpc.RpcOpts) (bool, error) {
 	resp, err := sendRpcRequestCallHelper[bool](w, "waitforroute", data, opts)
 	return resp, err
-}
-
-// command "waveaiaddcontext", wshserver.WaveAIAddContextCommand
-func WaveAIAddContextCommand(w *wshutil.WshRpc, data wshrpc.CommandWaveAIAddContextData, opts *wshrpc.RpcOpts) error {
-	_, err := sendRpcRequestCallHelper[any](w, "waveaiaddcontext", data, opts)
-	return err
-}
-
-// command "waveaienabletelemetry", wshserver.WaveAIEnableTelemetryCommand
-func WaveAIEnableTelemetryCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) error {
-	_, err := sendRpcRequestCallHelper[any](w, "waveaienabletelemetry", nil, opts)
-	return err
-}
-
-// command "waveaigettooldiff", wshserver.WaveAIGetToolDiffCommand
-func WaveAIGetToolDiffCommand(w *wshutil.WshRpc, data wshrpc.CommandWaveAIGetToolDiffData, opts *wshrpc.RpcOpts) (*wshrpc.CommandWaveAIGetToolDiffRtnData, error) {
-	resp, err := sendRpcRequestCallHelper[*wshrpc.CommandWaveAIGetToolDiffRtnData](w, "waveaigettooldiff", data, opts)
-	return resp, err
-}
-
-// command "waveaitoolapprove", wshserver.WaveAIToolApproveCommand
-func WaveAIToolApproveCommand(w *wshutil.WshRpc, data wshrpc.CommandWaveAIToolApproveData, opts *wshrpc.RpcOpts) error {
-	_, err := sendRpcRequestCallHelper[any](w, "waveaitoolapprove", data, opts)
-	return err
 }
 
 // command "wavefilereadstream", wshserver.WaveFileReadStreamCommand

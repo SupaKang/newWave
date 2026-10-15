@@ -67,14 +67,6 @@ const mockWidgets: { [key: string]: WidgetConfigType } = {
         "display:order": 3,
         blockdef: { meta: { view: "preview", connection: "local" } },
     },
-    "defwidget@sysinfo": {
-        icon: "chart-line",
-        color: "#34d399",
-        label: "Sysinfo",
-        description: "Open system info",
-        "display:order": 4,
-        blockdef: { meta: { view: "sysinfo" } },
-    },
 };
 
 const fullConfigAtom = atom<FullConfigType>({ settings: {}, widgets: mockWidgets } as unknown as FullConfigType);

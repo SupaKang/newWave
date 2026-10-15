@@ -14,11 +14,9 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
-	"github.com/wavetermdev/waveterm/pkg/aiusechat"
 	"github.com/wavetermdev/waveterm/pkg/authkey"
 	"github.com/wavetermdev/waveterm/pkg/blockcontroller"
 	"github.com/wavetermdev/waveterm/pkg/blocklogger"
-	"github.com/wavetermdev/waveterm/pkg/filebackup"
 	"github.com/wavetermdev/waveterm/pkg/filestore"
 	"github.com/wavetermdev/waveterm/pkg/jobcontroller"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
@@ -60,8 +58,6 @@ const TelemetryTick = 2 * time.Minute
 const TelemetryInterval = 4 * time.Hour
 const TelemetryInitialCountsWait = 5 * time.Second
 const TelemetryCountsInterval = 1 * time.Hour
-const BackupCleanupTick = 2 * time.Minute
-const BackupCleanupInterval = 4 * time.Hour
 const InitialDiagnosticWait = 5 * time.Minute
 const DiagnosticTick = 10 * time.Minute
 
@@ -186,23 +182,6 @@ func setupTelemetryConfigHandler() {
 	})
 }
 
-func backupCleanupLoop() {
-	defer func() {
-		panichandler.PanicHandler("backupCleanupLoop", recover())
-	}()
-	var nextCleanup int64
-	for {
-		if time.Now().Unix() > nextCleanup {
-			nextCleanup = time.Now().Add(BackupCleanupInterval).Unix()
-			err := filebackup.CleanupOldBackups()
-			if err != nil {
-				log.Printf("error cleaning up old backups: %v\n", err)
-			}
-		}
-		time.Sleep(BackupCleanupTick)
-	}
-}
-
 func panicTelemetryHandler(panicName string) {
 	activity := wshrpc.ActivityUpdate{NumPanics: 1}
 	err := telemetry.UpdateActivity(context.Background(), activity)
@@ -244,15 +223,11 @@ func updateTelemetryCounts(lastCounts telemetrydata.TEventProps) telemetrydata.T
 
 	fullConfig := wconfig.GetWatcher().GetFullConfig()
 	customWidgets := fullConfig.CountCustomWidgets()
-	customAIPresets := fullConfig.CountCustomAIPresets()
 	customSettings := wconfig.CountCustomSettings()
-	customAIModes := fullConfig.CountCustomAIModes()
 
 	props.UserSet = &telemetrydata.TEventUserProps{
-		SettingsCustomWidgets:   customWidgets,
-		SettingsCustomAIPresets: customAIPresets,
-		SettingsCustomSettings:  customSettings,
-		SettingsCustomAIModes:   customAIModes,
+		SettingsCustomWidgets:  customWidgets,
+		SettingsCustomSettings: customSettings,
 	}
 
 	secretsCount, err := secretstore.CountSecrets()
@@ -390,7 +365,6 @@ func createMainWshClient() {
 	sockName := wavebase.GetDomainSocketName()
 	remoteImpl := wshremote.MakeRemoteRpcServerImpl(nil, wshutil.DefaultRouter, wshclient.GetBareRpcClient(), true, localInitialEnv, sockName)
 	localConnWsh := wshutil.MakeWshRpc(wshrpc.RpcContext{Conn: wshrpc.LocalConnName}, remoteImpl, "conn:local")
-	go wshremote.RunSysInfoLoop(localConnWsh, wshrpc.LocalConnName)
 	wshutil.DefaultRouter.RegisterTrustedLeaf(localConnWsh, wshutil.MakeConnectionRouteId(wshrpc.LocalConnName))
 	wshfs.RpcClient = localConnWsh
 	wshfs.RpcClientRouteId = wshutil.MakeConnectionRouteId(wshrpc.LocalConnName)
@@ -563,14 +537,12 @@ func main() {
 	sigutil.InstallSIGUSR1Handler()
 	wconfig.MigratePresetsBackgrounds()
 	startConfigWatcher()
-	aiusechat.InitAIModeConfigWatcher()
 	maybeStartPprofServer()
 	go stdinReadWatch()
 	go telemetryLoop()
 	go diagnosticLoop()
 	setupTelemetryConfigHandler()
 	go updateTelemetryCountsLoop()
-	go backupCleanupLoop()
 	go startupActivityUpdate(firstLaunch) // must be after startConfigWatcher()
 	blocklogger.InitBlockLogger()
 	jobcontroller.InitJobController()

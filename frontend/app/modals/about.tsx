@@ -30,7 +30,7 @@ const AboutModalV = ({ versionString, updaterChannel, onClose }: AboutModalVProp
                     <Logo />
                     <div className="text-[25px]">Wave Terminal</div>
                     <div className="leading-5">
-                        Open-Source AI-Integrated Terminal
+                        Open-Source Terminal
                         <br />
                         Built for Seamless Workflows
                     </div>

@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 
 	"github.com/google/uuid"
-	"github.com/wavetermdev/waveterm/pkg/aiusechat/uctypes"
 	"github.com/wavetermdev/waveterm/pkg/baseds"
 	"github.com/wavetermdev/waveterm/pkg/telemetry/telemetrydata"
 	"github.com/wavetermdev/waveterm/pkg/vdom"
@@ -67,17 +66,14 @@ type WshRpcInterface interface {
 	EventUnsubAllCommand(ctx context.Context) error
 	EventReadHistoryCommand(ctx context.Context, data CommandEventReadHistoryData) ([]*wps.WaveEvent, error)
 
-	FileRestoreBackupCommand(ctx context.Context, data CommandFileRestoreBackupData) error
 	GetTempDirCommand(ctx context.Context, data CommandGetTempDirData) (string, error)
 	WriteTempFileCommand(ctx context.Context, data CommandWriteTempFileData) (string, error)
 	StreamTestCommand(ctx context.Context) chan RespOrErrorUnion[int]
-	StreamCpuDataCommand(ctx context.Context, request CpuDataRequest) chan RespOrErrorUnion[TimeSeriesData]
 	TestCommand(ctx context.Context, data string) error
 	TestMultiArgCommand(ctx context.Context, arg1 string, arg2 int, arg3 bool) (string, error)
 	SetConfigCommand(ctx context.Context, data MetaSettingsType) error
 	SetConnectionsConfigCommand(ctx context.Context, data ConnConfigRequest) error
 	GetFullConfigCommand(ctx context.Context) (wconfig.FullConfigType, error)
-	GetWaveAIModeConfigCommand(ctx context.Context) (wconfig.AIModeConfigUpdate, error)
 	BlockInfoCommand(ctx context.Context, blockId string) (*BlockInfoData, error)
 	DebugTermCommand(ctx context.Context, data CommandDebugTermData) (*CommandDebugTermRtnData, error)
 	BlocksListCommand(ctx context.Context, data BlocksListRequest) ([]BlocksListEntry, error)
@@ -119,7 +115,6 @@ type WshRpcInterface interface {
 
 	// remotes
 	WshRpcRemoteFileInterface
-	RemoteStreamCpuDataCommand(ctx context.Context) chan RespOrErrorUnion[TimeSeriesData]
 	RemoteGetInfoCommand(ctx context.Context) (RemoteInfo, error)
 	RemoteInstallRcFilesCommand(ctx context.Context) error
 	RemoteStartJobCommand(ctx context.Context, data CommandRemoteStartJobData) (*CommandStartJobRtnData, error)
@@ -127,8 +122,6 @@ type WshRpcInterface interface {
 	RemoteDisconnectFromJobManagerCommand(ctx context.Context, data CommandRemoteDisconnectFromJobManagerData) error
 	RemoteTerminateJobManagerCommand(ctx context.Context, data CommandRemoteTerminateJobManagerData) error
 	BadgeWatchPidCommand(ctx context.Context, data CommandBadgeWatchPidData) error
-	RemoteProcessListCommand(ctx context.Context, data CommandRemoteProcessListData) (*ProcessListResponse, error)
-	RemoteProcessSignalCommand(ctx context.Context, data CommandRemoteProcessSignalData) error
 
 	// emain
 	WebSelectorCommand(ctx context.Context, data CommandWebSelectorData) ([]string, error)
@@ -159,17 +152,7 @@ type WshRpcInterface interface {
 	VDomCreateContextCommand(ctx context.Context, data vdom.VDomCreateContext) (*waveobj.ORef, error)
 	VDomAsyncInitiationCommand(ctx context.Context, data vdom.VDomAsyncInitiationRequest) error
 
-	// ai
-	AiSendMessageCommand(ctx context.Context, data AiMessageData) error
-	WaveAIEnableTelemetryCommand(ctx context.Context) error
-	GetWaveAIChatCommand(ctx context.Context, data CommandGetWaveAIChatData) (*uctypes.UIChat, error)
-	GetWaveAIRateLimitCommand(ctx context.Context) (*uctypes.RateLimitInfo, error)
-	WaveAIToolApproveCommand(ctx context.Context, data CommandWaveAIToolApproveData) error
-	WaveAIAddContextCommand(ctx context.Context, data CommandWaveAIAddContextData) error
-	WaveAIGetToolDiffCommand(ctx context.Context, data CommandWaveAIGetToolDiffData) (*CommandWaveAIGetToolDiffRtnData, error)
 
-	// screenshot
-	CaptureBlockScreenshotCommand(ctx context.Context, data CommandCaptureBlockScreenshotData) (string, error)
 
 	// block focus
 	SetBlockFocusCommand(ctx context.Context, blockId string) error
@@ -349,21 +332,6 @@ type CommandEventReadHistoryData struct {
 }
 
 
-type CpuDataRequest struct {
-	Id    string `json:"id"`
-	Count int    `json:"count"`
-}
-
-type CpuDataType struct {
-	Time  int64   `json:"time"`
-	Value float64 `json:"value"`
-}
-
-type CommandFileRestoreBackupData struct {
-	BackupFilePath    string `json:"backupfilepath"`
-	RestoreToFileName string `json:"restoretofilename"`
-}
-
 type CommandGetTempDirData struct {
 	FileName string `json:"filename,omitempty"`
 }
@@ -385,15 +353,6 @@ type RemoteInfo struct {
 	ClientVersion string `json:"clientversion"`
 	Shell         string `json:"shell"`
 	HomeDir       string `json:"homedir"`
-}
-
-const (
-	TimeSeries_Cpu = "cpu"
-)
-
-type TimeSeriesData struct {
-	Ts     int64              `json:"ts"`
-	Values map[string]float64 `json:"values"`
 }
 
 type MetaSettingsType struct {
@@ -502,47 +461,6 @@ type BlocksListEntry struct {
 	Meta        waveobj.MetaMapType `json:"meta"`
 }
 
-type AiMessageData struct {
-	Message string `json:"message,omitempty"`
-}
-
-type CommandGetWaveAIChatData struct {
-	ChatId string `json:"chatid"`
-}
-
-type CommandWaveAIToolApproveData struct {
-	ToolCallId string `json:"toolcallid"`
-	Approval   string `json:"approval,omitempty"`
-}
-
-type AIAttachedFile struct {
-	Name   string `json:"name"`
-	Type   string `json:"type"`
-	Size   int    `json:"size"`
-	Data64 string `json:"data64"`
-}
-
-type CommandWaveAIAddContextData struct {
-	Files   []AIAttachedFile `json:"files,omitempty"`
-	Text    string           `json:"text,omitempty"`
-	Submit  bool             `json:"submit,omitempty"`
-	NewChat bool             `json:"newchat,omitempty"`
-}
-
-type CommandWaveAIGetToolDiffData struct {
-	ChatId     string `json:"chatid"`
-	ToolCallId string `json:"toolcallid"`
-}
-
-type CommandWaveAIGetToolDiffRtnData struct {
-	OriginalContents64 string `json:"originalcontents64"`
-	ModifiedContents64 string `json:"modifiedcontents64"`
-}
-
-type CommandCaptureBlockScreenshotData struct {
-	BlockId string `json:"blockid"`
-}
-
 type CommandVarData struct {
 	Key      string `json:"key"`
 	Val      string `json:"val,omitempty"`
@@ -585,8 +503,6 @@ type ActivityUpdate struct {
 	FgMinutes           int                   `json:"fgminutes,omitempty"`
 	ActiveMinutes       int                   `json:"activeminutes,omitempty"`
 	OpenMinutes         int                   `json:"openminutes,omitempty"`
-	WaveAIFgMinutes     int                   `json:"waveaifgminutes,omitempty"`
-	WaveAIActiveMinutes int                   `json:"waveaiactiveminutes,omitempty"`
 	NumTabs             int                   `json:"numtabs,omitempty"`
 	NewTab              int                   `json:"newtab,omitempty"`
 	NumBlocks           int                   `json:"numblocks,omitempty"`
@@ -598,7 +514,6 @@ type ActivityUpdate struct {
 	NumMagnify          int                   `json:"nummagnify,omitempty"`
 	TermCommandsRun     int                   `json:"termcommandsrun,omitempty"`
 	NumPanics           int                   `json:"numpanics,omitempty"`
-	NumAIReqs           int                   `json:"numaireqs,omitempty"`
 	Startup             int                   `json:"startup,omitempty"`
 	Shutdown            int                   `json:"shutdown,omitempty"`
 	SetTabTheme         int                   `json:"settabtheme,omitempty"`
@@ -874,61 +789,4 @@ type FocusedBlockData struct {
 	ConnStatus                 *ConnStatus         `json:"connstatus,omitempty"`
 	TermShellIntegrationStatus string              `json:"termshellintegrationstatus,omitempty"`
 	TermLastCommand            string              `json:"termlastcommand,omitempty"`
-}
-
-// ProcessInfo holds per-process information for the process viewer.
-// Mem, MemPct, Cpu, and NumThreads are set to -1 when the data is unavailable
-// (e.g. permission denied reading another user's process on macOS).
-type ProcessInfo struct {
-	Pid        int32   `json:"pid"`
-	Ppid       int32   `json:"ppid,omitempty"`
-	Command    string  `json:"command,omitempty"`
-	Status     string  `json:"status,omitempty"`
-	User       string  `json:"user,omitempty"`
-	Mem        int64   `json:"mem"`        // resident set size in bytes; -1 if unavailable
-	MemPct     float64 `json:"mempct"`     // memory percent; -1 if unavailable
-	Cpu        float64 `json:"cpu"`        // cpu percent; -1 if unavailable
-	NumThreads int32   `json:"numthreads"` // -1 if unavailable
-	Gone       bool    `json:"gone,omitempty"`
-}
-
-type ProcessSummary struct {
-	Total    int     `json:"total"`
-	Load1    float64 `json:"load1,omitempty"`
-	Load5    float64 `json:"load5,omitempty"`
-	Load15   float64 `json:"load15,omitempty"`
-	MemTotal uint64  `json:"memtotal,omitempty"`
-	MemUsed  uint64  `json:"memused,omitempty"`
-	MemFree  uint64  `json:"memfree,omitempty"`
-	NumCPU   int     `json:"numcpu,omitempty"`
-	CpuSum   float64 `json:"cpusum,omitempty"`
-}
-
-type ProcessListResponse struct {
-	Processes     []ProcessInfo  `json:"processes"`
-	Summary       ProcessSummary `json:"summary"`
-	Ts            int64          `json:"ts"`
-	HasCPU        bool           `json:"hascpu,omitempty"`
-	Platform      string         `json:"platform,omitempty"`
-	TotalCount    int            `json:"totalcount,omitempty"`
-	FilteredCount int            `json:"filteredcount,omitempty"`
-}
-
-type CommandRemoteProcessListData struct {
-	WidgetId   string `json:"widgetid,omitempty"`
-	SortBy     string `json:"sortby,omitempty"`
-	SortDesc   bool   `json:"sortdesc,omitempty"`
-	Start      int    `json:"start,omitempty"`
-	Limit      int    `json:"limit,omitempty"`
-	TextSearch string `json:"textsearch,omitempty"`
-	// LastPidOrder, when set, ignores SortBy/SortDesc/TextSearch and returns processes in the order
-	// they were returned in the previous request for this WidgetId (with Gone=true for dead pids).
-	LastPidOrder bool `json:"lastpidorder,omitempty"`
-	// KeepAlive, when set, overrides all other fields and simply keeps the backend cache alive (returns nil).
-	KeepAlive bool `json:"keepalive,omitempty"`
-}
-
-type CommandRemoteProcessSignalData struct {
-	Pid    int32  `json:"pid"`
-	Signal string `json:"signal"`
 }

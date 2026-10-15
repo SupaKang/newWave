@@ -125,7 +125,7 @@ export default defineConfig({
         root: ".",
         build: {
             target: CHROME,
-            sourcemap: true,
+            sourcemap: process.env.NODE_ENV !== "production", // slim: no 80MB maps in release
             outDir: "dist/frontend",
             rollupOptions: {
                 input: {

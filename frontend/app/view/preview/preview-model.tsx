@@ -19,7 +19,7 @@ import { loadable } from "jotai/utils";
 import type * as MonacoTypes from "monaco-editor";
 import { createRef } from "react";
 import { PreviewView } from "./preview";
-import { makeDirectoryDefaultMenuItems } from "./preview-directory-utils";
+import { makeDirectoryDefaultMenuItems, splitPathSegments } from "./preview-directory-utils";
 import type { PreviewEnv } from "./previewenv";
 
 // TODO drive this using config
@@ -32,7 +32,8 @@ const BOOKMARKS: { label: string; path: string }[] = [
 ];
 
 const MaxFileSize = 1024 * 1024 * 10; // 10MB
-const MaxCSVSize = 1024 * 1024 * 1; // 1MB
+const MaxCSVSize = 1024 * 1024 * 10; // 10MB
+const MaxTextViewSize = 1024 * 1024 * 1; // 1MB, "Open as Text" reads only this much of larger files
 
 const textApplicationMimetypes = [
     "application/sql",
@@ -48,7 +49,6 @@ const textApplicationMimetypes = [
     "application/dart",
     "application/vnd.dart",
     "application/x-ruby",
-    "application/sql",
     "application/wasm",
     "application/x-latex",
     "application/x-sh",
@@ -165,8 +165,10 @@ export class PreviewModel implements ViewModel {
     showHiddenFiles: PrimitiveAtom<boolean>;
     refreshVersion: PrimitiveAtom<number>;
     directorySearchActive: PrimitiveAtom<boolean>;
+    textViewPath: PrimitiveAtom<string>;
     refreshCallback: () => void;
     directoryKeyDownHandler: (waveEvent: WaveKeyboardEvent) => boolean;
+    imageKeyDownHandler: (waveEvent: WaveKeyboardEvent) => boolean;
     codeEditKeyDownHandler: (waveEvent: WaveKeyboardEvent) => boolean;
     env: PreviewEnv;
 
@@ -180,6 +182,7 @@ export class PreviewModel implements ViewModel {
         this.showHiddenFiles = atom<boolean>(showHiddenFiles);
         this.refreshVersion = atom(0);
         this.directorySearchActive = atom(false);
+        this.textViewPath = atom(null) as PrimitiveAtom<string>;
         this.previewTextRef = createRef();
         this.openFileModal = atom(false);
         this.openFileModalDelay = atom(false);
@@ -239,22 +242,42 @@ export class PreviewModel implements ViewModel {
             const loadableSV = get(this.loadableSpecializedView);
             const isCeView = loadableSV.state == "hasData" && loadableSV.data.specializedView == "codeedit";
             const loadableFileInfo = get(this.loadableFileInfo);
+            let homeLabel: string = null;
             if (loadableFileInfo.state == "hasData") {
                 headerPath = loadableFileInfo.data?.path;
                 if (headerPath == "~") {
-                    headerPath = `~ (${loadableFileInfo.data?.dir + "/" + loadableFileInfo.data?.name})`;
+                    homeLabel = `~ (${loadableFileInfo.data?.dir + "/" + loadableFileInfo.data?.name})`;
                 }
             }
-            if (!isBlank(headerPath) && headerPath != "/" && headerPath.endsWith("/")) {
+            if (!isBlank(headerPath) && headerPath != "/" && /[\\/]$/.test(headerPath)) {
                 headerPath = headerPath.slice(0, -1);
             }
+            const segments = homeLabel != null ? [{ label: homeLabel, path: "~" }] : splitPathSegments(headerPath);
+            const crumbs: HeaderElem[] = segments.map((seg, idx) => {
+                const isLast = idx == segments.length - 1;
+                return {
+                    elemtype: "text",
+                    text: seg.label,
+                    ref: isLast ? this.previewTextRef : undefined,
+                    noGrow: true,
+                    className: "preview-filename shrink-0",
+                    onClick: isLast
+                        ? () => this.toggleOpenFileModal()
+                        : () => fireAndForget(() => this.goHistory(seg.path)),
+                };
+            });
+            // rtl outer + ltr inner truncates long paths from the left so the file name stays visible
             const viewTextChildren: HeaderElem[] = [
                 {
-                    elemtype: "text",
-                    text: headerPath,
-                    ref: this.previewTextRef,
-                    className: "preview-filename",
-                    onClick: () => this.toggleOpenFileModal(),
+                    elemtype: "div",
+                    className: "!block !h-auto min-w-0 overflow-hidden [direction:rtl] text-left",
+                    children: [
+                        {
+                            elemtype: "div",
+                            className: "!inline-flex !w-auto !h-auto align-middle [direction:ltr]",
+                            children: crumbs,
+                        },
+                    ],
                 },
             ];
             let saveClassName = "grey";
@@ -270,7 +293,7 @@ export class PreviewModel implements ViewModel {
                         className: clsx(`grey rounded-[4px] !py-[2px] !px-[10px] text-[11px] font-[500]`),
                         onClick: () => {},
                     });
-                } else if (fileInfo.data.readonly) {
+                } else if (fileInfo.data.readonly || this.isTruncatedTextView(fileInfo.data, get(this.textViewPath))) {
                     viewTextChildren.push({
                         elemtype: "textbutton",
                         text: "Read Only",
@@ -437,11 +460,14 @@ export class PreviewModel implements ViewModel {
             if (fileName == null) {
                 return null;
             }
+            const textViewPath = get(this.textViewPath);
+            const truncated = textViewPath != null && this.isTruncatedTextView(await get(this.statFile), textViewPath);
             try {
                 const file = await this.env.rpc.FileReadCommand(TabRpcClient, {
                     info: {
                         path,
                     },
+                    at: truncated ? { offset: 0, size: MaxTextViewSize } : undefined,
                 });
                 return file;
             } catch (e) {
@@ -526,11 +552,14 @@ export class PreviewModel implements ViewModel {
             const fileNameStr = fileName ? " " + JSON.stringify(fileName) : "";
             return { errorStr: "File Not Found" + fileNameStr };
         }
+        if (!fileInfo.isdir && getFn(this.textViewPath) == fileInfo.path) {
+            return { specializedView: "codeedit" };
+        }
         if (fileInfo.size > MaxFileSize) {
-            return { errorStr: "File Too Large to Preview (10 MB Max)" };
+            return { specializedView: "nopreview", errorStr: "File Too Large to Preview (10 MB Max)" };
         }
         if (mimeType == "text/csv" && fileInfo.size > MaxCSVSize) {
-            return { errorStr: "CSV File Too Large to Preview (1 MB Max)" };
+            return { specializedView: "nopreview", errorStr: "CSV File Too Large to Preview (10 MB Max)" };
         }
         if (mimeType == "directory") {
             return { specializedView: "directory" };
@@ -550,7 +579,12 @@ export class PreviewModel implements ViewModel {
         if (isTextFile(mimeType) || fileInfo.size == 0) {
             return { specializedView: "codeedit" };
         }
-        return { errorStr: `Preview (${mimeType})` };
+        return { specializedView: "nopreview", errorStr: `No Preview Available (${mimeType})` };
+    }
+
+    // text view of a large file only holds its first MaxTextViewSize bytes, so it must not be saved back
+    isTruncatedTextView(fileInfo: FileInfo, textViewPath: string): boolean {
+        return fileInfo != null && textViewPath == fileInfo.path && fileInfo.size > MaxTextViewSize;
     }
 
     updateOpenFileModalAndError(isOpen, errorMsg = null) {
@@ -593,6 +627,7 @@ export class PreviewModel implements ViewModel {
         // Clear the saved file buffers
         globalStore.set(this.fileContentSaved, null);
         globalStore.set(this.newFileContent, null);
+        globalStore.set(this.textViewPath, null);
     }
 
     async goParentDirectory({ fileInfo = null }: { fileInfo?: FileInfo | null }) {
@@ -852,6 +887,12 @@ export class PreviewModel implements ViewModel {
         }
         if (this.codeEditKeyDownHandler) {
             const handled = this.codeEditKeyDownHandler(e);
+            if (handled) {
+                return true;
+            }
+        }
+        if (this.imageKeyDownHandler) {
+            const handled = this.imageKeyDownHandler(e);
             if (handled) {
                 return true;
             }

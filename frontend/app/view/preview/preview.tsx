@@ -1,12 +1,15 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { Button } from "@/app/element/button";
 import { CenteredDiv } from "@/app/element/quickelems";
+import { getApi } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { BlockHeaderSuggestionControl } from "@/app/suggestion/suggestion";
 import { useWaveEnv } from "@/app/waveenv/waveenv";
 import { isBlank, makeConnRoute } from "@/util/util";
+import { formatRemoteUri } from "@/util/waveutil";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { memo, useEffect } from "react";
 import { CSVView } from "./csvview";
@@ -44,6 +47,39 @@ function CSVViewPreview({ model, parentRef }: SpecializedViewProps) {
     return <CSVView parentRef={parentRef} readonly={true} content={fileContent} filename={fileName} />;
 }
 
+function NoPreviewPanel({ model, message }: { model: PreviewModel; message: string }) {
+    const fileInfo = useAtomValue(model.statFile);
+    const conn = useAtomValue(model.connection);
+    const buttonClassName = "outlined grey text-[12px] py-1 px-2";
+    return (
+        <CenteredDiv>
+            <div className="flex flex-col items-center gap-3">
+                <div>{message}</div>
+                <div className="flex flex-row gap-2">
+                    {conn ? (
+                        <Button
+                            className={buttonClassName}
+                            onClick={() => getApi().downloadFile(formatRemoteUri(fileInfo.path, conn))}
+                        >
+                            Download
+                        </Button>
+                    ) : (
+                        <Button className={buttonClassName} onClick={() => getApi().openNativePath(fileInfo.path)}>
+                            Open in Default App
+                        </Button>
+                    )}
+                    <Button
+                        className={buttonClassName}
+                        onClick={() => globalStore.set(model.textViewPath, fileInfo.path)}
+                    >
+                        Open as Text
+                    </Button>
+                </div>
+            </div>
+        </CenteredDiv>
+    );
+}
+
 const SpecializedView = memo(({ parentRef, model }: SpecializedViewProps) => {
     const specializedView = useAtomValue(model.specializedView);
     const mimeType = useAtomValue(model.fileMimeType);
@@ -54,6 +90,9 @@ const SpecializedView = memo(({ parentRef, model }: SpecializedViewProps) => {
         setCanPreview(canPreview(mimeType));
     }, [mimeType, setCanPreview]);
 
+    if (specializedView.specializedView == "nopreview") {
+        return <NoPreviewPanel model={model} message={specializedView.errorStr} />;
+    }
     if (specializedView.errorStr != null) {
         return <CenteredDiv>{specializedView.errorStr}</CenteredDiv>;
     }

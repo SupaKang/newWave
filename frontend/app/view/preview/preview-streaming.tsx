@@ -4,12 +4,21 @@
 import { Button } from "@/app/element/button";
 import { CenteredDiv } from "@/app/element/quickelems";
 import { globalStore } from "@/app/store/jotaiStore";
+import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { getWebServerEndpoint } from "@/util/endpoints";
+import { checkKeyPressed } from "@/util/keyutil";
+import { fireAndForget } from "@/util/util";
 import { formatRemoteUri } from "@/util/waveutil";
 import { useAtomValue } from "jotai";
 import { useEffect } from "react";
 import { TransformComponent, TransformWrapper, useControls } from "react-zoom-pan-pinch";
 import type { SpecializedViewProps } from "./preview";
+import type { PreviewModel } from "./preview-model";
+
+const CheckerboardStyle: React.CSSProperties = {
+    backgroundImage: "repeating-conic-gradient(#808080 0% 25%, #b0b0b0 0% 50%)",
+    backgroundSize: "16px 16px",
+};
 
 function ImageZoomControls() {
     const { zoomIn, zoomOut, resetTransform } = useControls();
@@ -36,14 +45,37 @@ function StreamingImagePreview({ url }: { url: string }) {
                 {({ zoomIn, zoomOut, resetTransform, ...rest }) => (
                     <>
                         <ImageZoomControls />
-                        <TransformComponent wrapperClass="!h-full !w-full">
-                            <img src={url} className="z-[1]" />
+                        <TransformComponent
+                            wrapperClass="!h-full !w-full"
+                            contentClass="!h-full !w-full flex items-center justify-center"
+                        >
+                            <img
+                                src={url}
+                                className="z-[1] max-w-full max-h-full object-contain"
+                                style={CheckerboardStyle}
+                            />
                         </TransformComponent>
                     </>
                 )}
             </TransformWrapper>
         </div>
     );
+}
+
+async function goSiblingImage(model: PreviewModel, fileInfo: FileInfo, delta: number) {
+    const dirUri = await model.formatRemoteUri(fileInfo.dir, globalStore.get);
+    const images: FileInfo[] = [];
+    const stream = model.env.rpc.FileListStreamCommand(TabRpcClient, { path: dirUri }, null);
+    for await (const chunk of stream) {
+        images.push(...(chunk?.fileinfo ?? []).filter((f) => !f.isdir && f.mimetype?.startsWith("image/")));
+    }
+    images.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+    const idx = images.findIndex((f) => f.path == fileInfo.path);
+    const next = images[idx + delta];
+    if (idx == -1 || next == null) {
+        return;
+    }
+    await model.goHistory(next.path);
 }
 
 function StreamingPreview({ model }: SpecializedViewProps) {
@@ -57,6 +89,23 @@ function StreamingPreview({ model }: SpecializedViewProps) {
     }, []);
     const conn = useAtomValue(model.connection);
     const fileInfo = useAtomValue(model.statFile);
+    const isImage = fileInfo.mimetype?.startsWith("image/");
+    useEffect(() => {
+        if (!isImage) {
+            return;
+        }
+        model.imageKeyDownHandler = (e: WaveKeyboardEvent): boolean => {
+            const delta = checkKeyPressed(e, "ArrowLeft") ? -1 : checkKeyPressed(e, "ArrowRight") ? 1 : 0;
+            if (delta == 0) {
+                return false;
+            }
+            fireAndForget(() => goSiblingImage(model, fileInfo, delta));
+            return true;
+        };
+        return () => {
+            model.imageKeyDownHandler = null;
+        };
+    }, [fileInfo, isImage]);
     const filePath = fileInfo.path;
     const remotePath = formatRemoteUri(filePath, conn);
     const usp = new URLSearchParams();

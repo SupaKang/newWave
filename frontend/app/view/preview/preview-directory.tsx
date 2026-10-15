@@ -22,10 +22,11 @@ import {
     getSortedRowModel,
     useReactTable,
 } from "@tanstack/react-table";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import clsx from "clsx";
 import { PrimitiveAtom, atom, useAtom, useAtomValue, useSetAtom } from "jotai";
 import { OverlayScrollbarsComponent, OverlayScrollbarsComponentRef } from "overlayscrollbars-react";
-import React, { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useDrag, useDrop } from "react-dnd";
 import { quote as shellQuote } from "shell-quote";
 import { debounce } from "throttle-debounce";
@@ -33,15 +34,16 @@ import "./directorypreview.scss";
 import { EntryManagerOverlay, EntryManagerOverlayProps, EntryManagerType } from "./entry-manager";
 import {
     cleanMimetype,
+    confirmFileDelete,
     getBestUnit,
     getLastModifiedTime,
     getSortIcon,
-    handleFileDelete,
     handleRename,
     isIconValid,
     makeDirectoryDefaultMenuItems,
     mergeError,
     overwriteError,
+    putDotDotFirst,
 } from "./preview-directory-utils";
 import { type PreviewModel } from "./preview-model";
 import type { PreviewEnv } from "./previewenv";
@@ -91,7 +93,7 @@ interface DirectoryTableProps {
     setSearch: (_: string) => void;
     setSelectedPath: (_: string) => void;
     setRefreshVersion: React.Dispatch<React.SetStateAction<number>>;
-    entryManagerOverlayPropsAtom: PrimitiveAtom<EntryManagerOverlayProps>;
+    updateName: (path: string, isDir: boolean) => void;
     newFile: () => void;
     newDirectory: () => void;
 }
@@ -107,14 +109,13 @@ function DirectoryTable({
     setSearch,
     setSelectedPath,
     setRefreshVersion,
-    entryManagerOverlayPropsAtom,
+    updateName,
     newFile,
     newDirectory,
 }: DirectoryTableProps) {
     const env = useWaveEnv<PreviewEnv>();
     const fullConfig = useAtomValue(env.atoms.fullConfigAtom);
     const defaultSort = useAtomValue(env.getSettingsKeyAtom("preview:defaultsort")) ?? "name";
-    const setErrorMsg = useSetAtom(model.errorMsgAtom);
     const getIconFromMimeType = useCallback(
         (mimeType: string): string => {
             while (mimeType.length > 0) {
@@ -186,29 +187,6 @@ function DirectoryTable({
         [fullConfig]
     );
 
-    const setEntryManagerProps = useSetAtom(entryManagerOverlayPropsAtom);
-
-    const updateName = useCallback(
-        (path: string, isDir: boolean) => {
-            const fileName = path.split("/").at(-1);
-            setEntryManagerProps({
-                entryManagerType: EntryManagerType.EditName,
-                startingValue: fileName,
-                onSave: (newName: string) => {
-                    let newPath: string;
-                    if (newName !== fileName) {
-                        const lastInstance = path.lastIndexOf(fileName);
-                        newPath = path.substring(0, lastInstance) + newName;
-                        console.log(`replacing ${fileName} with ${newName}: ${path}`);
-                        handleRename(model, path, newPath, isDir, setErrorMsg);
-                    }
-                    setEntryManagerProps(undefined);
-                },
-            });
-        },
-        [model, setErrorMsg]
-    );
-
     const initialSorting = defaultSort === "modtime" ? [{ id: "modtime", desc: true }] : [{ id: "name", desc: false }];
 
     const table = useReactTable({
@@ -232,11 +210,11 @@ function DirectoryTable({
             newDirectory,
         },
     });
-    const sortingState = table.getState().sorting;
+    const flatRows = table.getRowModel().flatRows;
+    const rows = useMemo(() => putDotDotFirst(flatRows, (row) => row.getValue("name") as string), [flatRows]);
     useEffect(() => {
-        const allRows = table.getRowModel()?.flatRows || [];
-        setSelectedPath((allRows[focusIndex]?.getValue("path") as string) ?? null);
-    }, [focusIndex, data, setSelectedPath, sortingState]);
+        setSelectedPath((rows[focusIndex]?.getValue("path") as string) ?? null);
+    }, [focusIndex, rows, setSelectedPath]);
 
     const columnSizeVars = useMemo(() => {
         const headers = table.getFlatHeaders();
@@ -252,6 +230,7 @@ function DirectoryTable({
     const osRef = useRef<OverlayScrollbarsComponentRef>(null);
     const bodyRef = useRef<HTMLDivElement>(null);
     const [scrollHeight, setScrollHeight] = useState(0);
+    const [scrollEl, setScrollEl] = useState<HTMLElement>(null);
 
     const onScroll = useCallback(
         debounce(2, () => {
@@ -265,7 +244,7 @@ function DirectoryTable({
     return (
         <OverlayScrollbarsComponent
             options={{ scrollbars: { autoHide: "leave" } }}
-            events={{ scroll: onScroll }}
+            events={{ scroll: onScroll, initialized: (os) => setScrollEl(os.elements().viewport) }}
             className="dir-table"
             style={{ ...columnSizeVars }}
             ref={osRef}
@@ -284,6 +263,7 @@ function DirectoryTable({
                 bodyRef={bodyRef}
                 model={model}
                 data={data}
+                rows={rows}
                 table={table}
                 search={search}
                 focusIndex={focusIndex}
@@ -291,7 +271,7 @@ function DirectoryTable({
                 setSearch={setSearch}
                 setSelectedPath={setSelectedPath}
                 setRefreshVersion={setRefreshVersion}
-                osRef={osRef.current}
+                scrollEl={scrollEl}
             />
         </OverlayScrollbarsComponent>
     );
@@ -301,6 +281,7 @@ interface TableBodyProps {
     bodyRef: React.RefObject<HTMLDivElement>;
     model: PreviewModel;
     data: Array<FileInfo>;
+    rows: Row<FileInfo>[];
     table: Table<FileInfo>;
     search: string;
     focusIndex: number;
@@ -308,57 +289,70 @@ interface TableBodyProps {
     setSearch: (_: string) => void;
     setSelectedPath: (_: string) => void;
     setRefreshVersion: React.Dispatch<React.SetStateAction<number>>;
-    osRef: OverlayScrollbarsComponentRef;
+    scrollEl: HTMLElement;
 }
 
 function TableBody({
     bodyRef,
     model,
+    rows,
     table,
     search,
     focusIndex,
     setFocusIndex,
     setSearch,
     setRefreshVersion,
-    osRef,
+    scrollEl,
 }: TableBodyProps) {
     const searchActive = useAtomValue(model.directorySearchActive);
     const dummyLineRef = useRef<HTMLDivElement>(null);
+    const scrollBoxRef = useRef<HTMLDivElement>(null);
     const warningBoxRef = useRef<HTMLDivElement>(null);
     const conn = useAtomValue(model.connection);
     const setErrorMsg = useSetAtom(model.errorMsgAtom);
+    const [rowHeight, setRowHeight] = useState(26);
+    const [scrollMargin, setScrollMargin] = useState(0);
+
+    // rows start below the sticky header (and search box), so the virtualizer needs that offset
+    useLayoutEffect(() => {
+        const height = dummyLineRef.current?.offsetHeight;
+        if (height > 0 && height != rowHeight) {
+            setRowHeight(height);
+        }
+        if (scrollEl == null || scrollBoxRef.current == null) {
+            return;
+        }
+        const margin =
+            scrollBoxRef.current.getBoundingClientRect().top -
+            scrollEl.getBoundingClientRect().top +
+            scrollEl.scrollTop;
+        if (margin != scrollMargin) {
+            setScrollMargin(margin);
+        }
+    });
+
+    const getItemKey = useCallback((idx: number) => rows[idx]?.original.path ?? idx, [rows]);
+    const virtualizer = useVirtualizer({
+        count: rows.length,
+        getScrollElement: () => scrollEl,
+        estimateSize: () => rowHeight,
+        getItemKey,
+        scrollMargin,
+        scrollPaddingStart: 30,
+        scrollPaddingEnd: 5,
+        overscan: 10,
+    });
 
     useEffect(() => {
-        if (focusIndex === null || !bodyRef.current || !osRef) {
+        virtualizer.measure();
+    }, [rowHeight]);
+
+    useEffect(() => {
+        if (focusIndex == null || scrollEl == null || focusIndex >= rows.length) {
             return;
         }
-
-        const rowElement = bodyRef.current.querySelector(`[data-rowindex="${focusIndex}"]`) as HTMLDivElement;
-        if (!rowElement) {
-            return;
-        }
-
-        const viewport = osRef.osInstance().elements().viewport;
-        const viewportHeight = viewport.offsetHeight;
-        const rowRect = rowElement.getBoundingClientRect();
-        const parentRect = viewport.getBoundingClientRect();
-        const viewportScrollTop = viewport.scrollTop;
-        const rowTopRelativeToViewport = rowRect.top - parentRect.top + viewport.scrollTop;
-        const rowBottomRelativeToViewport = rowRect.bottom - parentRect.top + viewport.scrollTop;
-
-        if (rowTopRelativeToViewport - 30 < viewportScrollTop) {
-            // Row is above the visible area
-            let topVal = rowTopRelativeToViewport - 30;
-            if (topVal < 0) {
-                topVal = 0;
-            }
-            viewport.scrollTo({ top: topVal });
-        } else if (rowBottomRelativeToViewport + 5 > viewportScrollTop + viewportHeight) {
-            // Row is below the visible area
-            const topVal = rowBottomRelativeToViewport - viewportHeight + 5;
-            viewport.scrollTo({ top: topVal });
-        }
-    }, [focusIndex]);
+        virtualizer.scrollToIndex(focusIndex, { align: "auto" });
+    }, [focusIndex, scrollEl]);
 
     const handleFileContextMenu = useCallback(
         async (e: any, finfo: FileInfo) => {
@@ -421,7 +415,7 @@ function TableBody({
                 },
                 {
                     label: "Delete",
-                    click: () => handleFileDelete(model, finfo.path, false, setErrorMsg),
+                    click: () => confirmFileDelete(model, finfo, setErrorMsg),
                 }
             );
             ContextMenuModel.getInstance().showContextMenu(menu, e);
@@ -429,9 +423,10 @@ function TableBody({
         [setRefreshVersion, conn]
     );
 
-    const allRows = table.getRowModel().flatRows;
-    const dotdotRow = allRows.find((row) => row.getValue("name") === "..");
-    const otherRows = allRows.filter((row) => row.getValue("name") !== "..");
+    const virtualItems = virtualizer.getVirtualItems();
+    const padTop = virtualItems.length > 0 ? virtualItems[0].start - scrollMargin : 0;
+    const padBottom =
+        virtualItems.length > 0 ? virtualizer.getTotalSize() - (virtualItems.at(-1).end - scrollMargin) : 0;
 
     return (
         <div className="dir-table-body" ref={bodyRef}>
@@ -455,32 +450,24 @@ function TableBody({
                     </div>
                 </div>
             )}
-            <div className="dir-table-body-scroll-box">
+            <div
+                className="dir-table-body-scroll-box"
+                ref={scrollBoxRef}
+                style={{ paddingTop: padTop, paddingBottom: padBottom }}
+            >
                 <div className="dummy dir-table-body-row" ref={dummyLineRef}>
                     <div className="dir-table-body-cell">dummy-data</div>
                 </div>
-                {dotdotRow && (
+                {virtualItems.map((virtualItem) => (
                     <TableRow
                         model={model}
-                        row={dotdotRow}
-                        focusIndex={focusIndex}
+                        row={rows[virtualItem.index]}
+                        isFocused={focusIndex === virtualItem.index}
                         setFocusIndex={setFocusIndex}
                         setSearch={setSearch}
-                        idx={0}
+                        idx={virtualItem.index}
                         handleFileContextMenu={handleFileContextMenu}
-                        key="dotdot"
-                    />
-                )}
-                {otherRows.map((row, idx) => (
-                    <TableRow
-                        model={model}
-                        row={row}
-                        focusIndex={focusIndex}
-                        setFocusIndex={setFocusIndex}
-                        setSearch={setSearch}
-                        idx={dotdotRow ? idx + 1 : idx}
-                        handleFileContextMenu={handleFileContextMenu}
-                        key={idx}
+                        key={virtualItem.key}
                     />
                 ))}
             </div>
@@ -491,14 +478,22 @@ function TableBody({
 type TableRowProps = {
     model: PreviewModel;
     row: Row<FileInfo>;
-    focusIndex: number;
+    isFocused: boolean;
     setFocusIndex: (_: number) => void;
     setSearch: (_: string) => void;
     idx: number;
     handleFileContextMenu: (e: any, finfo: FileInfo) => Promise<void>;
 };
 
-function TableRow({ model, row, focusIndex, setFocusIndex, setSearch, idx, handleFileContextMenu }: TableRowProps) {
+const TableRow = React.memo(function TableRow({
+    model,
+    row,
+    isFocused,
+    setFocusIndex,
+    setSearch,
+    idx,
+    handleFileContextMenu,
+}: TableRowProps) {
     const dirPath = useAtomValue(model.statFilePath);
     const connection = useAtomValue(model.connection);
 
@@ -526,7 +521,7 @@ function TableRow({ model, row, focusIndex, setFocusIndex, setSearch, idx, handl
 
     return (
         <div
-            className={clsx("dir-table-body-row", { focused: focusIndex === idx })}
+            className={clsx("dir-table-body-row", { focused: isFocused, odd: idx % 2 == 1 })}
             data-rowindex={idx}
             onDoubleClick={() => {
                 const newFileName = row.getValue("path") as string;
@@ -549,7 +544,8 @@ function TableRow({ model, row, focusIndex, setFocusIndex, setSearch, idx, handl
             ))}
         </div>
     );
-}
+});
+TableRow.displayName = "TableRow";
 
 const MemoizedTableBody = React.memo(
     TableBody,
@@ -631,6 +627,32 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
         [unfilteredData, showHiddenFiles, searchText]
     );
 
+    const entryManagerPropsAtom = useState(
+        atom<EntryManagerOverlayProps>(null) as PrimitiveAtom<EntryManagerOverlayProps>
+    )[0];
+    const [entryManagerProps, setEntryManagerProps] = useAtom(entryManagerPropsAtom);
+
+    const updateName = useCallback(
+        (path: string, isDir: boolean) => {
+            const fileName = path.split("/").at(-1);
+            setEntryManagerProps({
+                entryManagerType: EntryManagerType.EditName,
+                startingValue: fileName,
+                onSave: (newName: string) => {
+                    let newPath: string;
+                    if (newName !== fileName) {
+                        const lastInstance = path.lastIndexOf(fileName);
+                        newPath = path.substring(0, lastInstance) + newName;
+                        console.log(`replacing ${fileName} with ${newName}: ${path}`);
+                        handleRename(model, path, newPath, isDir, setErrorMsg);
+                    }
+                    setEntryManagerProps(undefined);
+                },
+            });
+        },
+        [model, setErrorMsg]
+    );
+
     useEffect(() => {
         model.directoryKeyDownHandler = (waveEvent: WaveKeyboardEvent): boolean => {
             if (checkKeyPressed(waveEvent, "Cmd:f")) {
@@ -667,6 +689,21 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
                 globalStore.set(model.directorySearchActive, false);
                 return true;
             }
+            if (checkKeyPressed(waveEvent, "Delete") || checkKeyPressed(waveEvent, "Cmd:Backspace")) {
+                confirmFileDelete(
+                    model,
+                    filteredData.find((f) => f.path == selectedPath),
+                    setErrorMsg
+                );
+                return true;
+            }
+            if (checkKeyPressed(waveEvent, "F2")) {
+                const selected = filteredData.find((f) => f.path == selectedPath);
+                if (selected != null && selected.name != "..") {
+                    updateName(selected.path, selected.isdir);
+                }
+                return true;
+            }
             if (checkKeyPressed(waveEvent, "Backspace")) {
                 if (searchText.length == 0) {
                     return true;
@@ -684,7 +721,7 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
                 return true;
             }
             if (isCharacterKeyEvent(waveEvent)) {
-                setSearchText((current) => current + waveEvent.key);
+                setSearchText((current) => current + waveEvent.key.toLowerCase());
                 return true;
             }
             return false;
@@ -692,18 +729,13 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
         return () => {
             model.directoryKeyDownHandler = null;
         };
-    }, [filteredData, selectedPath, searchText]);
+    }, [filteredData, selectedPath, searchText, updateName]);
 
     useEffect(() => {
         if (filteredData.length != 0 && focusIndex > filteredData.length - 1) {
             setFocusIndex(filteredData.length - 1);
         }
     }, [filteredData]);
-
-    const entryManagerPropsAtom = useState(
-        atom<EntryManagerOverlayProps>(null) as PrimitiveAtom<EntryManagerOverlayProps>
-    )[0];
-    const [entryManagerProps, setEntryManagerProps] = useAtom(entryManagerPropsAtom);
 
     const { refs, floatingStyles, context } = useFloating({
         open: !!entryManagerProps,
@@ -886,7 +918,7 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
                     setSearch={setSearchText}
                     setSelectedPath={setSelectedPath}
                     setRefreshVersion={setRefreshVersion}
-                    entryManagerOverlayPropsAtom={entryManagerPropsAtom}
+                    updateName={updateName}
                     newFile={newFile}
                     newDirectory={newDirectory}
                 />

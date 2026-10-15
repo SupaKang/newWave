@@ -9,6 +9,7 @@ import {
     getSortedRowModel,
     useReactTable,
 } from "@tanstack/react-table";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import clsx from "clsx";
 import Papa from "papaparse";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -39,11 +40,13 @@ const columnHelper = createColumnHelper<any>();
 
 // TODO remove parentRef dependency -- use own height
 const CSVView = ({ parentRef, filename, content }: CSVViewProps) => {
-    const csvCacheRef = useRef(new Map<string, string>());
-    const rowRef = useRef<(HTMLTableRowElement | null)[]>([]);
     const headerRef = useRef<HTMLTableRowElement | null>(null);
     const probeRef = useRef<HTMLTableRowElement | null>(null);
     const tbodyRef = useRef<HTMLTableSectionElement | null>(null);
+    const filterRef = useRef<HTMLInputElement | null>(null);
+    const [filter, setFilter] = useState("");
+    const [rowHeight, setRowHeight] = useState(24);
+    const [tableLoaded, setTableLoaded] = useState(false);
 
     const [state, setState] = useState<State>({
         content,
@@ -51,14 +54,9 @@ const CSVView = ({ parentRef, filename, content }: CSVViewProps) => {
         tbodyHeight: 0,
     });
 
-    const [tableLoaded, setTableLoaded] = useState(false);
-
     const { listeners } = useTableNav();
     const domRect = useDimensionsWithExistingRef(parentRef, 30);
     const parentHeight = domRect?.height ?? 0;
-
-    const cacheKey = `${filename}`;
-    csvCacheRef.current.set(cacheKey, content);
 
     // Parse the CSV data
     const parsedData = useMemo<CSVRow[]>(() => {
@@ -101,6 +99,14 @@ const CSVView = ({ parentRef, filename, content }: CSVViewProps) => {
         });
     }, [state.content]);
 
+    const filteredData = useMemo(() => {
+        const query = filter.trim().toLowerCase();
+        if (query == "") {
+            return parsedData;
+        }
+        return parsedData.filter((row) => Object.values(row).some((v) => String(v).toLowerCase().includes(query)));
+    }, [parsedData, filter]);
+
     // Column Definitions
     const columns = useMemo(() => {
         if (parsedData.length === 0) {
@@ -117,39 +123,52 @@ const CSVView = ({ parentRef, filename, content }: CSVViewProps) => {
 
     useEffect(() => {
         if (probeRef.current && headerRef.current && parsedData.length && parentRef.current) {
-            const rowHeight = probeRef.current.offsetHeight;
-            const fullTBodyHeight = rowHeight * parsedData.length;
-            const headerHeight = headerRef.current.offsetHeight;
+            const probeHeight = probeRef.current.offsetHeight;
+            setRowHeight(probeHeight);
+            const fullTBodyHeight = probeHeight * filteredData.length;
+            const headerHeight = headerRef.current.offsetHeight + (filterRef.current?.offsetHeight ?? 0);
             const maxHeightLessHeader = parentHeight - headerHeight;
-            const tbodyHeight = Math.min(maxHeightLessHeader, fullTBodyHeight) - 3; // 3 for the borders
+            const tbodyHeight = Math.max(0, Math.min(maxHeightLessHeader, fullTBodyHeight) - 3); // 3 for the borders
 
             setState((prevState) => ({ ...prevState, tbodyHeight }));
+            setTableLoaded(true);
         }
-    }, [parentHeight, parsedData]);
-
-    // Makes sure rows are rendered before setting the renderer as loaded
-    useEffect(() => {
-        let tid: NodeJS.Timeout;
-
-        if (rowRef.current.length === parsedData.length) {
-            tid = setTimeout(() => {
-                setTableLoaded(true);
-            }, 50); // Delay a bit to make sure the rows are rendered
-        }
-
-        return () => clearTimeout(tid);
-    }, [rowRef, parsedData]);
+    }, [parentHeight, parsedData, filteredData]);
 
     const table = useReactTable({
         manualPagination: true,
-        data: parsedData,
+        data: filteredData,
         columns,
         getCoreRowModel: getCoreRowModel(),
         getSortedRowModel: getSortedRowModel(),
     });
 
+    const rows = table.getRowModel().rows;
+    const virtualizer = useVirtualizer({
+        count: rows.length,
+        getScrollElement: () => tbodyRef.current,
+        estimateSize: () => rowHeight,
+        overscan: 10,
+    });
+    useEffect(() => {
+        virtualizer.measure();
+    }, [rowHeight]);
+    const virtualRows = virtualizer.getVirtualItems();
+    const padTop = virtualRows[0]?.start ?? 0;
+    const padBottom = virtualRows.length > 0 ? virtualizer.getTotalSize() - virtualRows.at(-1).end : 0;
     return (
-        <div className={clsx("csv-view ellipsis", { show: tableLoaded })} style={{ height: "auto" }}>
+        <div
+            className={clsx("csv-view ellipsis", { show: tableLoaded || parsedData.length == 0 })}
+            style={{ height: "auto" }}
+        >
+            <input
+                ref={filterRef}
+                type="text"
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+                placeholder="Filter"
+                className="block w-full px-2 py-1 text-xs bg-transparent border border-border rounded outline-none focus:border-accent"
+            />
             <table className="probe">
                 <tbody>
                     <tr ref={probeRef}>
@@ -191,23 +210,22 @@ const CSVView = ({ parentRef, filename, content }: CSVViewProps) => {
                         </tr>
                     ))}
                 </thead>
-                <tbody style={{ height: `${state.tbodyHeight}px` }} ref={tbodyRef}>
-                    {table.getRowModel().rows.map((row, index) => (
-                        <tr
-                            key={row.id}
-                            ref={(el) => {
-                                rowRef.current[index] = el;
-                            }}
-                            id={row.id}
-                            tabIndex={index}
-                        >
-                            {row.getVisibleCells().map((cell) => (
-                                <td className="ellipsis" key={cell.id} id={cell.id} tabIndex={index}>
-                                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                                </td>
-                            ))}
-                        </tr>
-                    ))}
+                <tbody
+                    style={{ height: `${state.tbodyHeight}px`, paddingTop: padTop, paddingBottom: padBottom }}
+                    ref={tbodyRef}
+                >
+                    {virtualRows.map((virtualRow) => {
+                        const row = rows[virtualRow.index];
+                        return (
+                            <tr key={row.id} id={row.id} tabIndex={virtualRow.index}>
+                                {row.getVisibleCells().map((cell) => (
+                                    <td className="ellipsis" key={cell.id} id={cell.id} tabIndex={virtualRow.index}>
+                                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                                    </td>
+                                ))}
+                            </tr>
+                        );
+                    })}
                 </tbody>
             </table>
         </div>

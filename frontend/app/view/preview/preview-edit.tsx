@@ -40,6 +40,7 @@ function CodeEditPreview({ model }: SpecializedViewProps) {
     const fileContent = useAtomValue(model.fileContent);
     const setNewFileContent = useSetAtom(model.newFileContent);
     const fileInfo = useAtomValue(model.statFile);
+    const textViewPath = useAtomValue(model.textViewPath);
     const fileName = fileInfo?.path || fileInfo?.name;
 
     const baseName = fileName ? fileName.split("/").pop() : null;
@@ -101,7 +102,7 @@ function CodeEditPreview({ model }: SpecializedViewProps) {
             text={fileContent}
             fileName={fileName}
             language={language}
-            readonly={fileInfo.readonly}
+            readonly={fileInfo.readonly || model.isTruncatedTextView(fileInfo, textViewPath)}
             onChange={(text) => setNewFileContent(text)}
             onMount={onMount}
         />

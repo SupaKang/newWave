@@ -152,6 +152,61 @@ export function handleFileDelete(
     });
 }
 
+export function confirmFileDelete(model: PreviewModel, finfo: FileInfo, setErrorMsg: (msg: ErrorMsg) => void) {
+    if (finfo == null || finfo.name == "..") {
+        return;
+    }
+    setErrorMsg({
+        status: "Confirm Delete",
+        text: finfo.isdir ? `Delete folder "${finfo.name}" and all of its contents?` : `Delete "${finfo.name}"?`,
+        level: "warning",
+        buttons: [
+            {
+                text: "Delete",
+                onClick: () => handleFileDelete(model, finfo.path, finfo.isdir, setErrorMsg),
+            },
+        ],
+    });
+}
+
+export function putDotDotFirst<T>(items: T[], getName: (item: T) => string): T[] {
+    const dotdot = items.find((item) => getName(item) == "..");
+    if (dotdot == null) {
+        return items;
+    }
+    return [dotdot, ...items.filter((item) => item !== dotdot)];
+}
+
+export type PathSegment = { label: string; path: string };
+
+// supports "/" and "\" separators (windows drives like C:\ or C:/), "~" home prefix
+export function splitPathSegments(path: string): PathSegment[] {
+    if (isBlank(path)) {
+        return [];
+    }
+    const sep = path.match(/[\\/]/)?.[0] ?? "/";
+    const parts = path.split(/[\\/]/);
+    const segs: PathSegment[] = [];
+    let cur = "";
+    parts.forEach((part, idx) => {
+        if (part == "") {
+            if (idx == 0) {
+                cur = sep;
+                segs.push({ label: sep, path: sep });
+            }
+            return;
+        }
+        cur = cur == "" ? part : cur.endsWith(sep) ? cur + part : cur + sep + part;
+        segs.push({ label: part, path: /^[a-zA-Z]:$/.test(cur) ? cur + sep : cur });
+    });
+    for (let i = 0; i < segs.length - 1; i++) {
+        if (segs[i].label != sep) {
+            segs[i].label += sep;
+        }
+    }
+    return segs;
+}
+
 export function makeDirectoryDefaultMenuItems(model: PreviewModel): ContextMenuItem[] {
     const defaultSort = globalStore.get(model.env.getSettingsKeyAtom("preview:defaultsort")) ?? "name";
     const showHiddenFiles = globalStore.get(model.showHiddenFiles) ?? true;

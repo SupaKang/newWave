@@ -11,7 +11,14 @@ import * as WOS from "@/store/wos";
 import { goHistory, goHistoryBack, goHistoryForward } from "@/util/historyutil";
 import { checkKeyPressed } from "@/util/keyutil";
 import { addOpenMenuItems } from "@/util/previewutil";
-import { base64ToString, fireAndForget, isBlank, jotaiLoadableValue, stringToBase64 } from "@/util/util";
+import {
+    base64ToString,
+    fireAndForget,
+    isBlank,
+    isLocalConnName,
+    jotaiLoadableValue,
+    stringToBase64,
+} from "@/util/util";
 import { formatRemoteUri } from "@/util/waveutil";
 import clsx from "clsx";
 import { Atom, atom, Getter, PrimitiveAtom, WritableAtom } from "jotai";
@@ -67,6 +74,12 @@ function isTextFile(mimeType: string): boolean {
             (mimeType.includes("json") || mimeType.includes("yaml") || mimeType.includes("toml"))) ||
         mimeType.includes("xml")
     );
+}
+
+const OfficeDocExtRe = /\.(doc|docx|docm|dot|dotx|rtf|odt|ppt|pptx|pptm|pps|ppsx|pot|potx|odp|xls|xlsx|xlsm|xlsb|ods|hwp|hwpx)$/i;
+
+function isOfficeDoc(fileName: string): boolean {
+    return fileName != null && OfficeDocExtRe.test(fileName);
 }
 
 function isStreamingType(mimeType: string): boolean {
@@ -541,6 +554,12 @@ export class PreviewModel implements ViewModel {
         }
         if (fileInfo?.notfound) {
             return { specializedView: "codeedit" };
+        }
+        if (!fileInfo.isdir && isOfficeDoc(fileName)) {
+            if (!isLocalConnName(getFn(this.connectionImmediate))) {
+                return { specializedView: "nopreview", errorStr: "Document preview is only available for local files" };
+            }
+            return { specializedView: "officedoc" };
         }
         if (mimeType == null) {
             return { errorStr: `Unable to determine mimetype for: ${fileInfo.path}` };

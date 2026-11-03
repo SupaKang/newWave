@@ -18,7 +18,7 @@ import { CodeEditPreview } from "./preview-edit";
 import { ErrorOverlay } from "./preview-error-overlay";
 import { MarkdownPreview } from "./preview-markdown";
 import type { PreviewModel } from "./preview-model";
-import { StreamingPreview } from "./preview-streaming";
+import { OfficeDocPreview, StreamingPreview } from "./preview-streaming";
 import type { PreviewEnv } from "./previewenv";
 
 export type SpecializedViewProps = {
@@ -32,6 +32,7 @@ const SpecializedViewMap: { [view: string]: ({ model }: SpecializedViewProps) =>
     codeedit: CodeEditPreview,
     csv: CSVViewPreview,
     directory: DirectoryPreview,
+    officedoc: OfficeDocPreview,
 };
 
 function canPreview(mimeType: string): boolean {

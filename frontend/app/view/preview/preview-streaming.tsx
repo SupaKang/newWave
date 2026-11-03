@@ -10,7 +10,7 @@ import { checkKeyPressed } from "@/util/keyutil";
 import { fireAndForget } from "@/util/util";
 import { formatRemoteUri } from "@/util/waveutil";
 import { useAtomValue } from "jotai";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { TransformComponent, TransformWrapper, useControls } from "react-zoom-pan-pinch";
 import type { SpecializedViewProps } from "./preview";
 import type { PreviewModel } from "./preview-model";
@@ -34,6 +34,20 @@ function ImageZoomControls() {
             <Button onClick={() => resetTransform()} title="Reset Zoom" className="py-1 px-[5px]">
                 <i className="fa-sharp fa-rotate-left" />
             </Button>
+        </div>
+    );
+}
+
+function makeStreamingUrl(remotePath: string): string {
+    const usp = new URLSearchParams();
+    usp.set("path", remotePath);
+    return `${getWebServerEndpoint()}/wave/stream-file?${usp.toString()}`;
+}
+
+function PdfFrame({ url }: { url: string }) {
+    return (
+        <div className="flex flex-row h-full overflow-hidden items-center justify-center p-[5px]">
+            <iframe src={url} width="100%" height="100%" name="pdfview" />
         </div>
     );
 }
@@ -106,17 +120,9 @@ function StreamingPreview({ model }: SpecializedViewProps) {
             model.imageKeyDownHandler = null;
         };
     }, [fileInfo, isImage]);
-    const filePath = fileInfo.path;
-    const remotePath = formatRemoteUri(filePath, conn);
-    const usp = new URLSearchParams();
-    usp.set("path", remotePath);
-    const streamingUrl = `${getWebServerEndpoint()}/wave/stream-file?${usp.toString()}`;
+    const streamingUrl = makeStreamingUrl(formatRemoteUri(fileInfo.path, conn));
     if (fileInfo.mimetype === "application/pdf") {
-        return (
-            <div className="flex flex-row h-full overflow-hidden items-center justify-center p-[5px]">
-                <iframe src={streamingUrl} width="100%" height="100%" name="pdfview" />
-            </div>
-        );
+        return <PdfFrame url={streamingUrl} />;
     }
     if (fileInfo.mimetype.startsWith("video/")) {
         return (
@@ -138,4 +144,52 @@ function StreamingPreview({ model }: SpecializedViewProps) {
     return <CenteredDiv>Preview Not Supported</CenteredDiv>;
 }
 
-export { StreamingPreview };
+// office/hwp files are rendered to a cached PDF by the local Office/Hancom install (see pkg/docconvert)
+function OfficeDocPreview({ model }: SpecializedViewProps) {
+    const fileInfo = useAtomValue(model.statFile);
+    const refreshVersion = useAtomValue(model.refreshVersion);
+    const [pdfPath, setPdfPath] = useState<string>(null);
+    const [errorStr, setErrorStr] = useState<string>(null);
+    useEffect(() => {
+        model.refreshCallback = () => {
+            globalStore.set(model.refreshVersion, (v) => v + 1);
+        };
+        return () => {
+            model.refreshCallback = null;
+        };
+    }, []);
+    useEffect(() => {
+        let canceled = false;
+        setPdfPath(null);
+        setErrorStr(null);
+        model.env.rpc
+            .ConvertDocToPdfCommand(TabRpcClient, fileInfo.path, { timeout: 130000 })
+            .then((path) => {
+                if (!canceled) {
+                    setPdfPath(path);
+                }
+            })
+            .catch((e) => {
+                if (!canceled) {
+                    setErrorStr(`${e}`);
+                }
+            });
+        return () => {
+            canceled = true;
+        };
+    }, [fileInfo.path, refreshVersion]);
+    if (errorStr != null) {
+        return <CenteredDiv>{errorStr}</CenteredDiv>;
+    }
+    if (pdfPath == null) {
+        return (
+            <CenteredDiv>
+                <i className="fa-sharp fa-solid fa-spinner fa-spin mr-2" />
+                Converting document...
+            </CenteredDiv>
+        );
+    }
+    return <PdfFrame url={makeStreamingUrl(formatRemoteUri(pdfPath, null))} />;
+}
+
+export { OfficeDocPreview, StreamingPreview };

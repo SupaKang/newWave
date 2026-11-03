@@ -24,6 +24,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/blockcontroller"
 	"github.com/wavetermdev/waveterm/pkg/blocklogger"
 	"github.com/wavetermdev/waveterm/pkg/buildercontroller"
+	"github.com/wavetermdev/waveterm/pkg/docconvert"
 	"github.com/wavetermdev/waveterm/pkg/filestore"
 	"github.com/wavetermdev/waveterm/pkg/genconn"
 	"github.com/wavetermdev/waveterm/pkg/jobcontroller"
@@ -821,6 +822,13 @@ func (ws *WshServer) WaveInfoCommand(ctx context.Context) (*wshrpc.WaveInfoData,
 
 func (ws *WshServer) MacOSVersionCommand(ctx context.Context) (string, error) {
 	return wavebase.ClientMacOSVersion(), nil
+}
+
+func (ws *WshServer) ConvertDocToPdfCommand(ctx context.Context, path string) (string, error) {
+	if path == "" {
+		return "", fmt.Errorf("path is required")
+	}
+	return docconvert.ConvertToPdf(ctx, path)
 }
 
 // BlocksListCommand returns every block visible in the requested

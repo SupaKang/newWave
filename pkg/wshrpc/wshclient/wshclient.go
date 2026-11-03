@@ -166,6 +166,12 @@ func ControllerResyncCommand(w *wshutil.WshRpc, data wshrpc.CommandControllerRes
 	return err
 }
 
+// command "convertdoctopdf", wshserver.ConvertDocToPdfCommand
+func ConvertDocToPdfCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts) (string, error) {
+	resp, err := sendRpcRequestCallHelper[string](w, "convertdoctopdf", data, opts)
+	return resp, err
+}
+
 // command "createblock", wshserver.CreateBlockCommand
 func CreateBlockCommand(w *wshutil.WshRpc, data wshrpc.CommandCreateBlockData, opts *wshrpc.RpcOpts) (waveobj.ORef, error) {
 	resp, err := sendRpcRequestCallHelper[waveobj.ORef](w, "createblock", data, opts)

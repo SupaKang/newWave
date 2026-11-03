@@ -22,6 +22,7 @@ export type PreviewEnv = WaveEnvSubset<{
         FileCopyCommand: WaveEnv["rpc"]["FileCopyCommand"];
         FileCreateCommand: WaveEnv["rpc"]["FileCreateCommand"];
         FileMkdirCommand: WaveEnv["rpc"]["FileMkdirCommand"];
+        ConvertDocToPdfCommand: WaveEnv["rpc"]["ConvertDocToPdfCommand"];
     };
     atoms: {
         fullConfigAtom: WaveEnv["atoms"]["fullConfigAtom"];

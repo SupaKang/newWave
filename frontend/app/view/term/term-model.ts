@@ -70,6 +70,7 @@ export class TermViewModel implements ViewModel {
     shellProcFullStatus: jotai.PrimitiveAtom<BlockControllerRuntimeStatus>;
     shellProcStatus: jotai.Atom<string>;
     shellProcStatusUnsubFn: () => void;
+    inputSendChain: Promise<void> = Promise.resolve();
     blockJobStatusAtom: jotai.PrimitiveAtom<BlockJobStatusData>;
     blockJobStatusVersionTs: number;
     blockJobStatusUnsubFn: () => void;
@@ -447,7 +448,10 @@ export class TermViewModel implements ViewModel {
 
     sendDataToController(data: string) {
         const b64data = stringToBase64(data);
-        RpcApi.ControllerInputCommand(TabRpcClient, { blockid: this.blockId, inputdata64: b64data });
+        // the server handles each rpc in its own goroutine, so only one input may be in flight to keep keys in order
+        this.inputSendChain = this.inputSendChain
+            .then(() => RpcApi.ControllerInputCommand(TabRpcClient, { blockid: this.blockId, inputdata64: b64data }))
+            .catch((e) => console.log("error sending terminal input", this.blockId, e));
     }
 
     setTermMode(mode: "term" | "vdom") {

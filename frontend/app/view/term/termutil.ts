@@ -1,4 +1,4 @@
-// Copyright 2025, Command Line Inc.
+// Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 export const DefaultTermTheme = "default-dark";
@@ -9,6 +9,13 @@ import base64 from "base64-js";
 import { colord } from "colord";
 
 export type GenClipboardItem = { text?: string; image?: Blob };
+
+export function getKeypressInput(e: KeyboardEvent): string {
+    if (e.type != "keypress" || !e.charCode || e.ctrlKey || e.altKey || e.metaKey) {
+        return null;
+    }
+    return String.fromCharCode(e.charCode);
+}
 
 export function trimTerminalSelection(text: string): string {
     return text

@@ -41,6 +41,7 @@ import {
     bufferLinesToText,
     createTempFileFromBlob,
     extractAllClipboardData,
+    getKeypressInput,
     normalizeCursorStyle,
     quoteForPosixShell,
     trimTerminalSelection,
@@ -111,6 +112,8 @@ export class TermWrap {
     // xterm.js paste() method triggers onData event, which can cause duplicate sends
     lastPasteData: string = "";
     lastPasteTime: number = 0;
+
+    compositionSendPending: boolean = false;
 
     // dev only (for debugging)
     recentWrites: { idx: number; data: string; ts: number }[] = [];
@@ -262,6 +265,12 @@ export class TermWrap {
             })
         );
         this.terminal.attachCustomKeyEventHandler((e: KeyboardEvent) => {
+            const deferredInput = this.compositionSendPending ? getKeypressInput(e) : null;
+            if (deferredInput != null) {
+                e.preventDefault();
+                setTimeout(() => this.terminal.input(deferredInput, true), 0);
+                return false;
+            }
             if (!waveOptions.keydownHandler) {
                 return true;
             }
@@ -272,6 +281,22 @@ export class TermWrap {
         this.heldData = [];
         this.handleResize_debounced = debounce(50, this.handleResize.bind(this));
         this.terminal.open(this.connectElem);
+
+        // xterm sends composed text from a setTimeout(0) after compositionend, but a Windows IME can
+        // deliver the committing space/enter as a keypress before that timer runs, which puts the key
+        // ahead of the last syllable. xterm's listener is registered first, so our timer fires after its.
+        const compositionEndHandler = () => {
+            this.compositionSendPending = true;
+            setTimeout(() => {
+                this.compositionSendPending = false;
+            }, 0);
+        };
+        this.terminal.textarea.addEventListener("compositionend", compositionEndHandler);
+        this.toDispose.push({
+            dispose: () => {
+                this.terminal.textarea?.removeEventListener("compositionend", compositionEndHandler);
+            },
+        });
 
         const dragoverHandler = (e: DragEvent) => {
             e.preventDefault();

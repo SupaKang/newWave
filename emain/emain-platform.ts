@@ -4,17 +4,17 @@
 import { fireAndForget } from "@/util/util";
 import { app, dialog, ipcMain, shell } from "electron";
 import envPaths from "env-paths";
-import { existsSync, mkdirSync } from "fs";
+import { cpSync, existsSync, mkdirSync } from "fs";
 import os from "os";
 import path from "path";
 import { WaveDevVarName, WaveDevViteVarName } from "../frontend/util/isdev";
 import * as keyutil from "../frontend/util/keyutil";
 
 // This is a little trick to ensure that Electron puts all its runtime data into a subdirectory to avoid conflicts with our own data.
-// On macOS, it will store to ~/Library/Application \Support/waveterm/electron
-// On Linux, it will store to ~/.config/waveterm/electron
-// On Windows, it will store to %LOCALAPPDATA%/waveterm/electron
-app.setName("waveterm/electron");
+// On macOS, it will store to ~/Library/Application \Support/newwave/electron
+// On Linux, it will store to ~/.config/newwave/electron
+// On Windows, it will store to %LOCALAPPDATA%/newwave/electron
+app.setName("newwave/electron");
 
 const isDev = !app.isPackaged;
 const isDevVite = isDev && process.env.ELECTRON_RENDERER_URL;
@@ -26,13 +26,18 @@ if (isDevVite) {
     process.env[WaveDevViteVarName] = "1";
 }
 
-const waveDirNamePrefix = "waveterm";
+const waveDirNamePrefix = "newwave";
 const waveDirNameSuffix = isDev ? "dev" : "";
 const waveDirName = `${waveDirNamePrefix}${waveDirNameSuffix ? `-${waveDirNameSuffix}` : ""}`;
 
-const paths = envPaths("waveterm", { suffix: waveDirNameSuffix });
+const paths = envPaths(waveDirNamePrefix, { suffix: waveDirNameSuffix });
 
-app.setName(isDev ? "Wave (Dev)" : "Wave");
+// newWave used to be installed as the official "Wave" app, whose dirs are named "waveterm"
+const legacyDirNamePrefix = "waveterm";
+const legacyDirName = `${legacyDirNamePrefix}${waveDirNameSuffix ? `-${waveDirNameSuffix}` : ""}`;
+const legacyPaths = envPaths(legacyDirNamePrefix, { suffix: waveDirNameSuffix });
+
+app.setName(isDev ? "newWave (Dev)" : "newWave");
 const unamePlatform = process.platform;
 const unameArch: string = process.arch;
 keyutil.setKeyUtilPlatform(unamePlatform);
@@ -91,6 +96,25 @@ function getWaveHomeDir(): string {
  * @param path The path to ensure.
  * @returns The same path, for chaining.
  */
+/**
+ * On the first newWave launch, copy the legacy "waveterm" config/data dir so settings and workspaces survive the rename.
+ * Lock and socket files belong to a possibly-running legacy instance and are skipped.
+ */
+function migrateLegacyDir(newDir: string, legacyDir: string) {
+    if (existsSync(newDir) || !existsSync(legacyDir)) {
+        return;
+    }
+    try {
+        cpSync(legacyDir, newDir, {
+            recursive: true,
+            filter: (src) => !/(wave\.lock|\.sock)$/.test(src),
+        });
+        console.log(`migrated legacy dir ${legacyDir} -> ${newDir}`);
+    } catch (e) {
+        console.log(`error migrating legacy dir ${legacyDir}: ${e}`);
+    }
+}
+
 function ensurePathExists(path: string): string {
     if (!existsSync(path)) {
         mkdirSync(path, { recursive: true });
@@ -119,6 +143,7 @@ function getWaveConfigDir(): string {
         retVal = path.join(xdgConfigHome, waveDirName);
     } else {
         retVal = path.join(app.getPath("home"), ".config", waveDirName);
+        migrateLegacyDir(retVal, path.join(app.getPath("home"), ".config", legacyDirName));
     }
     return ensurePathExists(retVal);
 }
@@ -144,6 +169,7 @@ function getWaveDataDir(): string {
         retVal = path.join(xdgDataHome, waveDirName);
     } else {
         retVal = paths.data;
+        migrateLegacyDir(retVal, legacyPaths.data);
     }
     return ensurePathExists(retVal);
 }

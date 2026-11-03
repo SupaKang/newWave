@@ -1047,6 +1047,7 @@ declare global {
         "editor:fontsize"?: number;
         "tab:flagcolor"?: string;
         "tab:background"?: string;
+        "workspace:folder"?: string;
         "bg:*"?: boolean;
         bg?: string;
         "bg:opacity"?: number;

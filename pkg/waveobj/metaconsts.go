@@ -71,6 +71,8 @@ const (
 	MetaKey_TabFlagColor                     = "tab:flagcolor"
 	MetaKey_TabBackground                    = "tab:background"
 
+	MetaKey_WorkspaceFolder                  = "workspace:folder"
+
 	MetaKey_BgClear                          = "bg:*"
 	MetaKey_Bg                               = "bg"
 	MetaKey_BgOpacity                        = "bg:opacity"

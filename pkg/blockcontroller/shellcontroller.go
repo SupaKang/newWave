@@ -403,6 +403,9 @@ func (bc *ShellController) setupAndStartShellProcess(logCtx context.Context, rc 
 		cmdOpts.Interactive = true
 		cmdOpts.Login = true
 		cmdOpts.Cwd = blockMeta.GetString(waveobj.MetaKey_CmdCwd, "")
+		if cmdOpts.Cwd == "" && connUnion.ConnType == ConnType_Local {
+			cmdOpts.Cwd = getWorkspaceFolderForBlock(ctx, bc.BlockId)
+		}
 		if cmdOpts.Cwd != "" {
 			cwdPath, err := wavebase.ExpandHomeDir(cmdOpts.Cwd)
 			if err != nil {
@@ -700,6 +703,30 @@ func getLocalShellPath(blockMeta waveobj.MetaMapType) (string, error) {
 		return settings.TermLocalShellPath, nil
 	}
 	return shellutil.DetectLocalShellPath(), nil
+}
+
+// returns the "workspace:folder" of the workspace that owns the block, or "" (also when the folder no longer exists)
+func getWorkspaceFolderForBlock(ctx context.Context, blockId string) string {
+	tabId, err := wstore.DBFindTabForBlockId(ctx, blockId)
+	if err != nil || tabId == "" {
+		return ""
+	}
+	workspaceId, err := wstore.DBFindWorkspaceForTabId(ctx, tabId)
+	if err != nil || workspaceId == "" {
+		return ""
+	}
+	ws, err := wstore.DBGet[*waveobj.Workspace](ctx, workspaceId)
+	if err != nil || ws == nil {
+		return ""
+	}
+	folder := ws.Meta.GetString(waveobj.MetaKey_WorkspaceFolder, "")
+	if folder == "" {
+		return ""
+	}
+	if finfo, err := os.Stat(folder); err != nil || !finfo.IsDir() {
+		return ""
+	}
+	return folder
 }
 
 func getLocalShellOpts(blockMeta waveobj.MetaMapType) []string {

@@ -72,6 +72,9 @@ type MetaTSType struct {
 	// for tabs
 	TabFlagColor        string  `json:"tab:flagcolor,omitempty"`
 	TabBackground       string  `json:"tab:background,omitempty"`
+	// workspace-level "open folder" (VS Code style); local terminals without their own cmd:cwd start here
+	WorkspaceFolder string `json:"workspace:folder,omitempty"`
+
 	BgClear             bool    `json:"bg:*,omitempty"`
 	Bg                  string  `json:"bg,omitempty"`
 	BgOpacity           float64 `json:"bg:opacity,omitempty"`

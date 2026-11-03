@@ -15,6 +15,7 @@ import { Tab } from "./tab";
 import "./tabbar.scss";
 import { TabBarEnv } from "./tabbarenv";
 import { UpdateStatusBanner } from "./updatebanner";
+import { WorkspaceFolderChip } from "./workspacefolderchip";
 import { WorkspaceSwitcher } from "./workspaceswitcher";
 
 const TabDefaultWidth = 130;
@@ -102,6 +103,8 @@ const TabBar = memo(({ workspace, noTabs }: TabBarProps) => {
     const confirmClose = useAtomValue(env.getSettingsKeyAtom("tab:confirmclose")) ?? false;
     const appUpdateStatus = useAtomValue(env.atoms.updaterStatusAtom);
 
+    const workspaceFolder = workspace?.meta?.["workspace:folder"];
+
     let prevDelta: number;
     let prevDragDirection: string;
 
@@ -158,11 +161,7 @@ const TabBar = memo(({ workspace, noTabs }: TabBarProps) => {
         const workspaceSwitcherWidth = workspaceSwitcherRef.current?.getBoundingClientRect().width ?? 0;
 
         const nonTabElementsWidth =
-            windowDragLeftWidth +
-            rightContainerWidth +
-            addBtnWidth +
-            appMenuButtonWidth +
-            workspaceSwitcherWidth;
+            windowDragLeftWidth + rightContainerWidth + addBtnWidth + appMenuButtonWidth + workspaceSwitcherWidth;
         const spaceForTabs = tabbarWrapperWidth - nonTabElementsWidth;
 
         const numberOfTabs = tabIds.length;
@@ -247,15 +246,7 @@ const TabBar = memo(({ workspace, noTabs }: TabBarProps) => {
                 prevAllLoadedRef.current = true;
             }
         }
-    }, [
-        tabIds,
-        tabsLoaded,
-        newTabId,
-        saveTabsPosition,
-        appUpdateStatus,
-        zoomFactor,
-        showMenuBar,
-    ]);
+    }, [tabIds, tabsLoaded, newTabId, saveTabsPosition, appUpdateStatus, zoomFactor, showMenuBar, workspaceFolder]);
 
     const getDragDirection = (currentX: number) => {
         let dragDirection: string;
@@ -539,9 +530,7 @@ const TabBar = memo(({ workspace, noTabs }: TabBarProps) => {
     // Calculate window drag left width based on platform and state
     let windowDragLeftWidth = 10;
     if (env.isMacOS() && !isFullScreen) {
-        const trafficLightsWidth = isMacOSTahoeOrLater()
-            ? MacOSTahoeTrafficLightsWidth
-            : MacOSTrafficLightsWidth;
+        const trafficLightsWidth = isMacOSTahoeOrLater() ? MacOSTahoeTrafficLightsWidth : MacOSTrafficLightsWidth;
         if (zoomFactor > 0) {
             windowDragLeftWidth = trafficLightsWidth / zoomFactor;
         } else {
@@ -576,15 +565,12 @@ const TabBar = memo(({ workspace, noTabs }: TabBarProps) => {
                     <i className="fa fa-ellipsis" />
                 </div>
             )}
-            <Tooltip
-                content="Workspace Switcher"
-                placement="bottom"
-                hideOnClick
-                divRef={workspaceSwitcherRef}
-                divClassName="flex items-center"
-            >
-                <WorkspaceSwitcher />
-            </Tooltip>
+            <div ref={workspaceSwitcherRef} className="flex items-center min-w-0">
+                <Tooltip content="Workspace Switcher" placement="bottom" hideOnClick divClassName="flex items-center">
+                    <WorkspaceSwitcher />
+                </Tooltip>
+                <WorkspaceFolderChip workspaceId={workspace?.oid} folder={workspaceFolder} />
+            </div>
             <div className="tab-bar" ref={tabBarRef} data-overlayscrollbars-initialize>
                 <div
                     className="tabs-wrapper"

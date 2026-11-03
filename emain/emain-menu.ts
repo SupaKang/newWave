@@ -125,6 +125,36 @@ function makeEditMenu(fullConfig?: FullConfigType): Electron.MenuItemConstructor
     ];
 }
 
+async function setWorkspaceFolder(workspaceId: string, folder: string) {
+    await RpcApi.SetMetaCommand(ElectronWshClient, {
+        oref: `workspace:${workspaceId}`,
+        meta: { "workspace:folder": folder },
+    });
+}
+
+async function openWorkspaceFolder() {
+    const ww = focusedWaveWindow;
+    if (ww == null || ww.workspaceId == null) {
+        return;
+    }
+    const result = await electron.dialog.showOpenDialog(ww, {
+        title: "Open Folder",
+        properties: ["openDirectory"],
+    });
+    if (result.canceled || result.filePaths.length == 0) {
+        return;
+    }
+    await setWorkspaceFolder(ww.workspaceId, result.filePaths[0]);
+}
+
+async function closeWorkspaceFolder() {
+    const ww = focusedWaveWindow;
+    if (ww == null || ww.workspaceId == null) {
+        return;
+    }
+    await setWorkspaceFolder(ww.workspaceId, null);
+}
+
 function makeFileMenu(
     numWaveWindows: number,
     callbacks: AppMenuCallbacks,
@@ -136,6 +166,16 @@ function makeFileMenu(
             accelerator: "CommandOrControl+Shift+N",
             click: () => fireAndForget(callbacks.createNewWaveWindow),
         },
+        { type: "separator" },
+        {
+            label: "Open Folder...",
+            click: () => fireAndForget(openWorkspaceFolder),
+        },
+        {
+            label: "Close Folder",
+            click: () => fireAndForget(closeWorkspaceFolder),
+        },
+        { type: "separator" },
         {
             role: "close",
             accelerator: "",
@@ -321,7 +361,10 @@ function makeViewMenu(
                     const oref = `workspace:${workspaceId}`;
                     const meta = await RpcApi.GetMetaCommand(ElectronWshClient, { oref });
                     const current = meta?.["layout:widgetsvisible"] ?? true;
-                    await RpcApi.SetMetaCommand(ElectronWshClient, { oref, meta: { "layout:widgetsvisible": !current } });
+                    await RpcApi.SetMetaCommand(ElectronWshClient, {
+                        oref,
+                        meta: { "layout:widgetsvisible": !current },
+                    });
                 });
             },
         },

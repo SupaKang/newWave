@@ -4,6 +4,7 @@
 import { Tooltip } from "@/app/element/tooltip";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { useWaveEnv, WaveEnv, WaveEnvSubset } from "@/app/waveenv/waveenv";
+import { CraftAppBar } from "@/app/workspace/craftappbar";
 import { shouldIncludeWidgetForWorkspace } from "@/app/workspace/widgetfilter";
 import { modalsModel } from "@/store/modalmodel";
 import { fireAndForget, isBlank, makeIconClass } from "@/util/util";
@@ -468,7 +469,7 @@ const Widgets = memo(() => {
                                 <Widget key={`widget-${idx}`} widget={data} mode={mode} env={env} />
                             ))}
                         </div>
-                        <div className="flex-grow" />
+                        <CraftAppBar />
                         <div className="grid grid-cols-2 gap-0 w-full">
                             {env.isDev() || featureWaveAppBuilder ? (
                                 <div
@@ -508,7 +509,7 @@ const Widgets = memo(() => {
                         {widgets?.map((data, idx) => (
                             <Widget key={`widget-${idx}`} widget={data} mode={mode} env={env} />
                         ))}
-                        <div className="flex-grow" />
+                        <CraftAppBar />
                         {env.isDev() || featureWaveAppBuilder ? (
                             <div
                                 ref={appsButtonRef}

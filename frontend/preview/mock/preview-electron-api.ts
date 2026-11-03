@@ -48,6 +48,7 @@ const previewElectronApi: ElectronApi = {
     sendLog: (_log: string) => {},
     onQuicklook: (_filePath: string) => {},
     openNativePath: (_filePath: string) => {},
+    getFileIcon: (_filePath: string) => Promise.resolve(""),
     setKeyboardChordMode: () => {},
     clearWebviewStorage: (_webContentsId: number) => Promise.resolve(),
     closeBuilderWindow: () => {},

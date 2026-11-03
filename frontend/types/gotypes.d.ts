@@ -247,6 +247,12 @@ declare global {
         rtopts?: RuntimeOpts;
     };
 
+    // wshrpc.CommandCraftAppLaunchData
+    type CommandCraftAppLaunchData = {
+        appid: string;
+        path?: string;
+    };
+
     // wshrpc.CommandCreateBlockData
     type CommandCreateBlockData = {
         tabid: string;
@@ -773,6 +779,20 @@ declare global {
         wshversion?: string;
         lastactivitybeforestalledtime?: number;
         keepalivesenttime?: number;
+    };
+
+    // wshrpc.CraftAppInfo
+    type CraftAppInfo = {
+        appid: string;
+        name: string;
+        description: string;
+        icon: string;
+        color: string;
+        installed: boolean;
+        exepath?: string;
+        clipath?: string;
+        exts?: string[];
+        homeurl: string;
     };
 
     // wshrpc.DirEntryOut

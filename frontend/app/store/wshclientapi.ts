@@ -174,6 +174,30 @@ export class RpcApiType {
         return client.wshRpcCall("convertdoctopdf", data, opts);
     }
 
+    // command "craftappinstall" [call]
+    CraftAppInstallCommand(client: WshClient, data: string, opts?: RpcOpts): Promise<string> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "craftappinstall", data, opts);
+        return client.wshRpcCall("craftappinstall", data, opts);
+    }
+
+    // command "craftapplaunch" [call]
+    CraftAppLaunchCommand(client: WshClient, data: CommandCraftAppLaunchData, opts?: RpcOpts): Promise<void> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "craftapplaunch", data, opts);
+        return client.wshRpcCall("craftapplaunch", data, opts);
+    }
+
+    // command "craftappregistermcp" [call]
+    CraftAppRegisterMcpCommand(client: WshClient, data: string, opts?: RpcOpts): Promise<string> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "craftappregistermcp", data, opts);
+        return client.wshRpcCall("craftappregistermcp", data, opts);
+    }
+
+    // command "craftappslist" [call]
+    CraftAppsListCommand(client: WshClient, opts?: RpcOpts): Promise<CraftAppInfo[]> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "craftappslist", null, opts);
+        return client.wshRpcCall("craftappslist", null, opts);
+    }
+
     // command "createblock" [call]
     CreateBlockCommand(client: WshClient, data: CommandCreateBlockData, opts?: RpcOpts): Promise<ORef> {
         if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "createblock", data, opts);

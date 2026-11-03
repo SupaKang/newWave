@@ -495,6 +495,11 @@ export function initIpcHandlers() {
         );
     });
 
+    electron.ipcMain.handle("get-file-icon", async (_event, filePath: string) => {
+        const icon = await electronApp.getFileIcon(filePath, { size: "large" });
+        return icon.toDataURL();
+    });
+
     electron.ipcMain.on("set-window-init-status", (event, status: "ready" | "wave-ready") => {
         const tabView = getWaveTabViewByWebContentsId(event.sender.id);
         if (tabView != null && tabView.initResolve != null) {

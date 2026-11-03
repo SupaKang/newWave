@@ -24,6 +24,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/blockcontroller"
 	"github.com/wavetermdev/waveterm/pkg/blocklogger"
 	"github.com/wavetermdev/waveterm/pkg/buildercontroller"
+	"github.com/wavetermdev/waveterm/pkg/craftapps"
 	"github.com/wavetermdev/waveterm/pkg/docconvert"
 	"github.com/wavetermdev/waveterm/pkg/filestore"
 	"github.com/wavetermdev/waveterm/pkg/genconn"
@@ -829,6 +830,22 @@ func (ws *WshServer) ConvertDocToPdfCommand(ctx context.Context, path string) (s
 		return "", fmt.Errorf("path is required")
 	}
 	return docconvert.ConvertToPdf(ctx, path)
+}
+
+func (ws *WshServer) CraftAppsListCommand(ctx context.Context) ([]wshrpc.CraftAppInfo, error) {
+	return craftapps.ListApps(), nil
+}
+
+func (ws *WshServer) CraftAppInstallCommand(ctx context.Context, appId string) (string, error) {
+	return craftapps.Install(ctx, appId)
+}
+
+func (ws *WshServer) CraftAppRegisterMcpCommand(ctx context.Context, appId string) (string, error) {
+	return craftapps.RegisterMcp(ctx, appId)
+}
+
+func (ws *WshServer) CraftAppLaunchCommand(ctx context.Context, data wshrpc.CommandCraftAppLaunchData) error {
+	return craftapps.Launch(data.AppId, data.Path)
 }
 
 // BlocksListCommand returns every block visible in the requested

@@ -120,6 +120,7 @@ declare global {
         sendLog: (log: string) => void; // fe-log
         onQuicklook: (filePath: string) => void; // quicklook
         openNativePath(filePath: string): void; // open-native-path
+        getFileIcon(filePath: string): Promise<string>; // get-file-icon (data url of the OS shell icon)
         setKeyboardChordMode: () => void; // set-keyboard-chord-mode
         clearWebviewStorage: (webContentsId: number) => Promise<void>; // clear-webview-storage
         closeBuilderWindow: () => void; // close-builder-window

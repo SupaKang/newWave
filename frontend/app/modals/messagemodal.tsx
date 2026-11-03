@@ -14,7 +14,7 @@ const MessageModal = ({ children }: { children: ReactNode }) => {
 
     return (
         <Modal className="message-modal" onOk={() => closeModal()} onClose={() => closeModal()}>
-            {children}
+            <div className="whitespace-pre-line">{children}</div>
         </Modal>
     );
 };

@@ -87,6 +87,10 @@ type WshRpcInterface interface {
 	SetVarCommand(ctx context.Context, data CommandVarData) error
 	PathCommand(ctx context.Context, data PathCommandData) (string, error)
 	ConvertDocToPdfCommand(ctx context.Context, path string) (string, error)
+	CraftAppsListCommand(ctx context.Context) ([]CraftAppInfo, error)
+	CraftAppInstallCommand(ctx context.Context, appId string) (string, error)
+	CraftAppRegisterMcpCommand(ctx context.Context, appId string) (string, error)
+	CraftAppLaunchCommand(ctx context.Context, data CommandCraftAppLaunchData) error
 	SendTelemetryCommand(ctx context.Context) error
 	FetchSuggestionsCommand(ctx context.Context, data FetchSuggestionsData) (*FetchSuggestionsResponse, error)
 	DisposeSuggestionsCommand(ctx context.Context, widgetId string) error
@@ -491,6 +495,24 @@ type PathCommandData struct {
 	Open         bool   `json:"open"`
 	OpenExternal bool   `json:"openexternal"`
 	TabId        string `json:"tabid"`
+}
+
+type CraftAppInfo struct {
+	AppId       string   `json:"appid"`
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	Icon        string   `json:"icon"`
+	Color       string   `json:"color"`
+	Installed   bool     `json:"installed"`
+	ExePath     string   `json:"exepath,omitempty"`
+	CliPath     string   `json:"clipath,omitempty"`
+	Exts        []string `json:"exts,omitempty"`
+	HomeUrl     string   `json:"homeurl"`
+}
+
+type CommandCraftAppLaunchData struct {
+	AppId string `json:"appid"`
+	Path  string `json:"path,omitempty"`
 }
 
 type ActivityDisplayType struct {

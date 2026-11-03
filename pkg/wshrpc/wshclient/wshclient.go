@@ -172,6 +172,30 @@ func ConvertDocToPdfCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts
 	return resp, err
 }
 
+// command "craftappinstall", wshserver.CraftAppInstallCommand
+func CraftAppInstallCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts) (string, error) {
+	resp, err := sendRpcRequestCallHelper[string](w, "craftappinstall", data, opts)
+	return resp, err
+}
+
+// command "craftapplaunch", wshserver.CraftAppLaunchCommand
+func CraftAppLaunchCommand(w *wshutil.WshRpc, data wshrpc.CommandCraftAppLaunchData, opts *wshrpc.RpcOpts) error {
+	_, err := sendRpcRequestCallHelper[any](w, "craftapplaunch", data, opts)
+	return err
+}
+
+// command "craftappregistermcp", wshserver.CraftAppRegisterMcpCommand
+func CraftAppRegisterMcpCommand(w *wshutil.WshRpc, data string, opts *wshrpc.RpcOpts) (string, error) {
+	resp, err := sendRpcRequestCallHelper[string](w, "craftappregistermcp", data, opts)
+	return resp, err
+}
+
+// command "craftappslist", wshserver.CraftAppsListCommand
+func CraftAppsListCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) ([]wshrpc.CraftAppInfo, error) {
+	resp, err := sendRpcRequestCallHelper[[]wshrpc.CraftAppInfo](w, "craftappslist", nil, opts)
+	return resp, err
+}
+
 // command "createblock", wshserver.CreateBlockCommand
 func CreateBlockCommand(w *wshutil.WshRpc, data wshrpc.CommandCreateBlockData, opts *wshrpc.RpcOpts) (waveobj.ORef, error) {
 	resp, err := sendRpcRequestCallHelper[waveobj.ORef](w, "createblock", data, opts)

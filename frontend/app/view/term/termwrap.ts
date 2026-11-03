@@ -281,7 +281,8 @@ export class TermWrap {
         };
         const dropHandler = (e: DragEvent) => {
             e.preventDefault();
-            if (!e.dataTransfer || e.dataTransfer.files.length === 0) {
+            // shift+drop is left to the app-level handler, which opens the files in a preview block
+            if (e.shiftKey || !e.dataTransfer || e.dataTransfer.files.length === 0) {
                 return;
             }
             const paths: string[] = [];

@@ -1287,6 +1287,8 @@ declare global {
         "window:savelastwindow"?: boolean;
         "window:dimensions"?: string;
         "window:zoom"?: number;
+        "fileopen:*"?: boolean;
+        "fileopen:assoc"?: {[key: string]: string};
         "telemetry:*"?: boolean;
         "telemetry:enabled"?: boolean;
         "conn:*"?: boolean;

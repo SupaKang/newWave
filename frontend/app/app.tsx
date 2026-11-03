@@ -8,6 +8,7 @@ import {
     getBlockBadgeAtom,
 } from "@/app/store/badge";
 import { ClientModel } from "@/app/store/client-model";
+import { openDroppedFiles } from "@/app/store/fileopen";
 import { GlobalModel } from "@/app/store/global-model";
 import { globalStore } from "@/app/store/jotaiStore";
 import { getTabModelByTabId, TabModelContext } from "@/app/store/tab-model";
@@ -16,7 +17,7 @@ import { makeWaveEnvImpl } from "@/app/waveenv/waveenvimpl";
 import { Workspace } from "@/app/workspace/workspace";
 import { getLayoutModelForStaticTab } from "@/layout/index";
 import { ContextMenuModel } from "@/store/contextmenu";
-import { atoms, createBlock, getSettingsPrefixAtom, refocusNode } from "@/store/global";
+import { atoms, createBlock, getApi, getSettingsPrefixAtom, refocusNode } from "@/store/global";
 import { appHandleKeyDown, keyboardMouseDownHandler } from "@/store/keymodel";
 import { getElemAsStr } from "@/util/focusutil";
 import * as keyutil from "@/util/keyutil";
@@ -283,6 +284,45 @@ const AppKeyHandlers = () => {
     return null;
 };
 
+// files dropped anywhere except a terminal (or shift+dropped on one) go through the "open with" flow
+const AppFileDropHandler = () => {
+    useEffect(() => {
+        const isFileDrag = (e: DragEvent) => e.dataTransfer?.types?.includes("Files") ?? false;
+        const handleDragOver = (e: DragEvent) => {
+            if (!isFileDrag(e)) {
+                return;
+            }
+            e.preventDefault();
+            e.dataTransfer.dropEffect = "copy";
+        };
+        const handleDrop = (e: DragEvent) => {
+            if (!isFileDrag(e)) {
+                return;
+            }
+            e.preventDefault();
+            // can't rely on defaultPrevented: react-dnd's HTML5 backend prevents every native drop in the capture phase
+            const onTerminal = (e.target as Element)?.closest?.(".term-connectelem") != null;
+            if (onTerminal && !e.shiftKey) {
+                return;
+            }
+            const paths = Array.from(e.dataTransfer.files)
+                .map((file) => getApi().getPathForFile(file))
+                .filter((path) => !util.isBlank(path));
+            if (paths.length == 0) {
+                return;
+            }
+            util.fireAndForget(() => openDroppedFiles(paths));
+        };
+        document.addEventListener("dragover", handleDragOver);
+        document.addEventListener("drop", handleDrop);
+        return () => {
+            document.removeEventListener("dragover", handleDragOver);
+            document.removeEventListener("drop", handleDrop);
+        };
+    }, []);
+    return null;
+};
+
 const BadgeAutoClearing = () => {
     const tabId = useAtomValue(atoms.staticTabId);
     const documentHasFocus = useAtomValue(atoms.documentHasFocus);
@@ -364,6 +404,7 @@ const AppInner = () => {
             <AppBackground />
             <MacOSFirstClickHandler />
             <AppKeyHandlers />
+            <AppFileDropHandler />
             <AppFocusHandler />
             <AppSettingsUpdater />
             <BadgeAutoClearing />

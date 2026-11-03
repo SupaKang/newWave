@@ -94,6 +94,9 @@ const (
 	ConfigKey_WindowDimensions               = "window:dimensions"
 	ConfigKey_WindowZoom                     = "window:zoom"
 
+	ConfigKey_FileOpenClear                  = "fileopen:*"
+	ConfigKey_FileOpenAssoc                  = "fileopen:assoc"
+
 	ConfigKey_TelemetryClear                 = "telemetry:*"
 	ConfigKey_TelemetryEnabled               = "telemetry:enabled"
 

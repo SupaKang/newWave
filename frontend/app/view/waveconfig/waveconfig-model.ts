@@ -6,6 +6,7 @@ import { globalStore } from "@/app/store/jotaiStore";
 import type { TabModel } from "@/app/store/tab-model";
 import { makeORef } from "@/app/store/wos";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
+import { FileAssocContent } from "@/app/view/waveconfig/fileassoccontent";
 import { SecretsContent } from "@/app/view/waveconfig/secretscontent";
 import { WaveConfigView } from "@/app/view/waveconfig/waveconfig";
 import type { WaveConfigEnv } from "@/app/view/waveconfig/waveconfigenv";
@@ -26,6 +27,7 @@ export type ConfigFile = {
     docsUrl?: string;
     validator?: ConfigValidator;
     isSecrets?: boolean;
+    visualOnly?: boolean; // not backed by its own config file; the visual component reads/writes settings itself
     hasJsonView?: boolean;
     visualComponent?: React.ComponentType<{ model: WaveConfigViewModel }>;
 };
@@ -62,6 +64,14 @@ function makeConfigFiles(isWindows: boolean): ConfigFile[] {
             language: "json",
             docsUrl: "https://docs.waveterm.dev/tab-backgrounds",
             hasJsonView: true,
+        },
+        {
+            name: "File Associations",
+            path: "fileassoc",
+            description: "Which app opens dropped files",
+            visualOnly: true,
+            hasJsonView: false,
+            visualComponent: FileAssocContent,
         },
         {
             name: "Secrets",
@@ -254,6 +264,16 @@ export class WaveConfigViewModel implements ViewModel {
             globalStore.set(this.isLoadingAtom, false);
             this.checkStorageBackend();
             this.refreshSecrets();
+            return;
+        }
+
+        if (file.visualOnly) {
+            globalStore.set(this.selectedFileAtom, file);
+            this.env.rpc.SetMetaCommand(TabRpcClient, {
+                oref: makeORef("block", this.blockId),
+                meta: { file: file.path },
+            });
+            globalStore.set(this.isLoadingAtom, false);
             return;
         }
 

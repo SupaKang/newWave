@@ -125,6 +125,10 @@ type SettingsType struct {
 	WindowDimensions                    string   `json:"window:dimensions,omitempty"`
 	WindowZoom                          *float64 `json:"window:zoom,omitempty"`
 
+	FileOpenClear bool `json:"fileopen:*,omitempty"`
+	// lowercase extension without the dot -> "preview" | "system" | "craft:<appid>"
+	FileOpenAssoc map[string]string `json:"fileopen:assoc,omitempty"`
+
 	TelemetryClear   bool `json:"telemetry:*,omitempty"`
 	TelemetryEnabled bool `json:"telemetry:enabled,omitempty"`
 
@@ -689,6 +693,21 @@ func convertJsonNumber(num json.Number, ctype reflect.Type) (interface{}, error)
 	return nil, fmt.Errorf("cannot convert number to %s", ctype)
 }
 
+func convertViaJson(val any, ctype reflect.Type) (any, error) {
+	if ctype.Kind() != reflect.Map && ctype.Kind() != reflect.Slice {
+		return nil, fmt.Errorf("not a map or slice type: %s", ctype)
+	}
+	barr, err := json.Marshal(val)
+	if err != nil {
+		return nil, err
+	}
+	ptr := reflect.New(ctype)
+	if err := json.Unmarshal(barr, ptr.Interface()); err != nil {
+		return nil, err
+	}
+	return ptr.Elem().Interface(), nil
+}
+
 func SetBaseConfigValue(toMerge waveobj.MetaMapType) error {
 	m, cerrs := ReadWaveHomeConfigFile(SettingsFile)
 	if len(cerrs) > 0 {
@@ -717,6 +736,9 @@ func SetBaseConfigValue(toMerge waveobj.MetaMapType) error {
 			if rtype != ctype {
 				if ctype == reflect.PointerTo(rtype) {
 					m[configKey] = &val
+				} else if converted, err := convertViaJson(val, ctype); err == nil {
+					// decoded JSON maps/arrays arrive as map[string]any / []any, never as the typed field
+					val = converted
 				} else {
 					return fmt.Errorf("invalid value type for %s: %T", configKey, val)
 				}

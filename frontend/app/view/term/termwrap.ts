@@ -38,6 +38,8 @@ import {
     type ShellIntegrationStatus,
 } from "./osc-handlers";
 import { makeTermLinkHandlers } from "./term-links";
+import { addWSReconnectHandler, removeWSReconnectHandler } from "@/app/store/ws";
+import { OutputSequencer } from "./outputsequencer";
 import {
     bufferLinesToText,
     createTempFileFromBlob,
@@ -89,7 +91,8 @@ export class TermWrap {
     serializeAddon: SerializeAddon;
     mainFileSubject: SubjectWithRef<WSFileEventData>;
     loaded: boolean;
-    heldData: Uint8Array[];
+    heldData: { offset: number; data: Uint8Array }[];
+    outputSeq: OutputSequencer;
     disposed: boolean = false;
     webglRetried: boolean = false;
     handleResize_debounced: () => void;
@@ -285,6 +288,23 @@ export class TermWrap {
         this.connectElem = connectElem;
         this.mainFileSubject = null;
         this.heldData = [];
+        this.outputSeq = new OutputSequencer(
+            (data) => {
+                this.doTerminalWrite(data, null);
+            },
+            async (offset) => {
+                const { data, fileInfo } = await fetchWaveFile(this.getZoneId(), TermFileName, offset);
+                return { data, endOffset: fileInfo?.size ?? offset };
+            }
+        );
+        // output published while the websocket was down is gone for good and nothing may follow it to reveal the gap
+        const wsReconnectHandler = () => {
+            if (this.loaded) {
+                this.outputSeq.resync();
+            }
+        };
+        addWSReconnectHandler(wsReconnectHandler);
+        this.toDispose.push({ dispose: () => removeWSReconnectHandler(wsReconnectHandler) });
         this.handleResize_debounced = debounce(150, this.handleResize.bind(this));
         this.terminal.open(this.connectElem);
 
@@ -513,12 +533,15 @@ export class TermWrap {
         if (msg.fileop == "truncate") {
             this.terminal.clear();
             this.heldData = [];
+            this.outputSeq.reset(0);
         } else if (msg.fileop == "append") {
             const decodedData = base64ToArray(msg.data64);
-            if (this.loaded) {
+            if (!this.loaded) {
+                this.heldData.push({ offset: msg.offset, data: decodedData });
+            } else if (msg.offset == null) {
                 this.doTerminalWrite(decodedData, null);
             } else {
-                this.heldData.push(decodedData);
+                this.outputSeq.append(msg.offset, decodedData);
             }
         } else {
             console.log("bad fileop for terminal", msg);
@@ -582,13 +605,16 @@ export class TermWrap {
         );
         if (mainFile != null) {
             await this.doTerminalWrite(mainData, null);
-            // appends that arrived while loading sit in heldData and may overlap mainData; refetching the tail by offset avoids both loss and duplication
-            const { data: tailData } = await fetchWaveFile(zoneId, TermFileName, this.ptyOffset);
-            if (tailData?.byteLength > 0) {
-                await this.doTerminalWrite(tailData, null);
+        }
+        // appends that arrived while loading overlap mainData or continue it; the sequencer sorts that out by offset
+        this.outputSeq.reset(mainFile?.size ?? 0);
+        const held = this.heldData;
+        this.heldData = [];
+        for (const h of held) {
+            if (h.offset != null) {
+                this.outputSeq.append(h.offset, h.data);
             }
         }
-        this.heldData = [];
     }
 
     async resyncController(reason: string) {

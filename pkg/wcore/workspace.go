@@ -484,24 +484,59 @@ func SetName(workspaceId string, name string) error {
 	return nil
 }
 
+// removes tabId from the workspace's tab list (not saved) and picks a new active tab.
+// the last tab cannot be moved out: an emptied workspace would be deleted along with its window, even if it is a saved one.
+func detachTabFromWorkspace(ctx context.Context, workspaceId string, tabId string) (*waveobj.Workspace, error) {
+	ws, err := GetWorkspace(ctx, workspaceId)
+	if err != nil {
+		return nil, fmt.Errorf("workspace %s not found: %w", workspaceId, err)
+	}
+	tabIdx := utilfn.FindStringInSlice(ws.TabIds, tabId)
+	if tabIdx == -1 {
+		return nil, fmt.Errorf("tab %s not found in workspace %s", tabId, workspaceId)
+	}
+	if len(ws.TabIds) < 2 {
+		return nil, fmt.Errorf("cannot move the only tab out of a workspace")
+	}
+	ws.TabIds = append(ws.TabIds[:tabIdx], ws.TabIds[tabIdx+1:]...)
+	if ws.ActiveTabId == tabId {
+		ws.ActiveTabId = ws.TabIds[max(0, min(tabIdx-1, len(ws.TabIds)-1))]
+	}
+	return ws, nil
+}
+
+// MoveTabToWorkspace moves tabId into another (already open) workspace and makes it the active tab there.
+// Returns the source workspace's new active tab id.
+func MoveTabToWorkspace(ctx context.Context, srcWorkspaceId string, tabId string, dstWorkspaceId string) (string, error) {
+	if srcWorkspaceId == dstWorkspaceId {
+		return "", fmt.Errorf("tab is already in workspace %s", dstWorkspaceId)
+	}
+	dstWs, err := GetWorkspace(ctx, dstWorkspaceId)
+	if err != nil {
+		return "", fmt.Errorf("workspace %s not found: %w", dstWorkspaceId, err)
+	}
+	srcWs, err := detachTabFromWorkspace(ctx, srcWorkspaceId, tabId)
+	if err != nil {
+		return "", err
+	}
+	dstWs.TabIds = append(dstWs.TabIds, tabId)
+	dstWs.ActiveTabId = tabId
+	if err := wstore.DBUpdate(ctx, dstWs); err != nil {
+		return "", fmt.Errorf("error updating workspace: %w", err)
+	}
+	if err := wstore.DBUpdate(ctx, srcWs); err != nil {
+		return "", fmt.Errorf("error updating workspace: %w", err)
+	}
+	return srcWs.ActiveTabId, nil
+}
+
 // MoveTabToNewWindow detaches tabId from srcWorkspaceId into a fresh unsaved workspace owned by a new window.
 // Blocks (and their running controllers) stay attached to the tab, so terminals keep running.
 // Returns the new window and the source workspace's new active tab id.
 func MoveTabToNewWindow(ctx context.Context, srcWorkspaceId string, tabId string, winSize *waveobj.WinSize) (*waveobj.Window, string, error) {
-	srcWs, err := GetWorkspace(ctx, srcWorkspaceId)
+	srcWs, err := detachTabFromWorkspace(ctx, srcWorkspaceId, tabId)
 	if err != nil {
-		return nil, "", fmt.Errorf("workspace %s not found: %w", srcWorkspaceId, err)
-	}
-	tabIdx := utilfn.FindStringInSlice(srcWs.TabIds, tabId)
-	if tabIdx == -1 {
-		return nil, "", fmt.Errorf("tab %s not found in workspace %s", tabId, srcWorkspaceId)
-	}
-	if len(srcWs.TabIds) < 2 {
-		return nil, "", fmt.Errorf("cannot move the only tab out of a workspace")
-	}
-	srcWs.TabIds = append(srcWs.TabIds[:tabIdx], srcWs.TabIds[tabIdx+1:]...)
-	if srcWs.ActiveTabId == tabId {
-		srcWs.ActiveTabId = srcWs.TabIds[max(0, min(tabIdx-1, len(srcWs.TabIds)-1))]
+		return nil, "", err
 	}
 	newWs := &waveobj.Workspace{
 		OID:         uuid.NewString(),

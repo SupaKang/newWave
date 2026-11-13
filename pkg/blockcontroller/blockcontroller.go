@@ -373,6 +373,12 @@ func HandleAppendBlockFile(blockId string, blockFile string, data []byte) error 
 	if err != nil {
 		return fmt.Errorf("error appending to blockfile: %w", err)
 	}
+	// a concurrent append can make this offset wrong; the receiver then just refetches from the file
+	var offset *int64
+	if file, err := filestore.WFS.Stat(ctx, blockId, blockFile); err == nil {
+		startOffset := file.Size - int64(len(data))
+		offset = &startOffset
+	}
 	wps.Broker.Publish(wps.WaveEvent{
 		Event: wps.Event_BlockFile,
 		Scopes: []string{
@@ -383,6 +389,7 @@ func HandleAppendBlockFile(blockId string, blockFile string, data []byte) error 
 			FileName: blockFile,
 			FileOp:   wps.FileOp_Append,
 			Data64:   base64.StdEncoding.EncodeToString(data),
+			Offset:   offset,
 		},
 	})
 	return nil

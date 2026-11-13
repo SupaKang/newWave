@@ -83,4 +83,6 @@ type WSFileEventData struct {
 	FileName string `json:"filename"`
 	FileOp   string `json:"fileop"`
 	Data64   string `json:"data64"`
+	// file offset where an append starts; lets the receiver detect lost or duplicated events
+	Offset *int64 `json:"offset,omitempty"`
 }

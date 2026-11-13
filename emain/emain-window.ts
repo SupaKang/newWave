@@ -25,6 +25,8 @@ import { updater } from "./updater";
 
 const DevInitDiagnosticMs = 5000;
 
+const TabDropStripHeight = 60;
+
 export type WindowOpts = {
     unamePlatform: NodeJS.Platform;
     isPrimaryStartupWindow?: boolean;
@@ -809,10 +811,37 @@ ipcMain.handle("close-tab", async (event, workspaceId: string, tabId: string, co
     return true;
 });
 
+// a tab dropped on the top strip (tab bar) of another window joins that window instead of opening a new one
+function findTabDropWindow(srcWindow: WaveBrowserWindow, screenX: number, screenY: number): WaveBrowserWindow {
+    for (const ww of getAllWaveWindows()) {
+        if (ww == srcWindow || ww.isDestroyed() || ww.isMinimized() || !ww.isVisible()) {
+            continue;
+        }
+        const b = ww.getBounds();
+        if (screenX >= b.x && screenX < b.x + b.width && screenY >= b.y && screenY < b.y + TabDropStripHeight) {
+            return ww;
+        }
+    }
+    return null;
+}
+
 ipcMain.on("move-tab-to-new-window", (event, tabId: string, screenX: number, screenY: number) => {
     fireAndForget(async () => {
         const ww = getWaveWindowByWebContentsId(event.sender.id);
         if (ww == null) {
+            return;
+        }
+        const hasDropPoint = screenX != null && screenY != null;
+        const dropTarget = hasDropPoint ? findTabDropWindow(ww, screenX, screenY) : null;
+        if (dropTarget != null) {
+            const srcActiveTabId = await WorkspaceService.MoveTabToWorkspace(
+                ww.workspaceId,
+                tabId,
+                dropTarget.workspaceId
+            );
+            await ww.detachTab(tabId, srcActiveTabId);
+            await dropTarget.setActiveTab(tabId, false);
+            dropTarget.focus();
             return;
         }
         const [width, height] = ww.getSize();
@@ -824,9 +853,12 @@ ipcMain.on("move-tab-to-new-window", (event, tabId: string, screenX: number, scr
         const winData = await WindowService.GetWindow(rtn.windowid);
         const fullConfig = await RpcApi.GetFullConfigCommand(ElectronWshClient);
         const newWin = await createBrowserWindow(winData, fullConfig, { unamePlatform, isPrimaryStartupWindow: false });
-        // put the grabbed tab roughly under the cursor, like Chrome
-        const pos = ensureBoundsAreVisible({ x: Math.round(screenX) - 120, y: Math.round(screenY) - 16, width, height });
-        newWin.setBounds(pos);
+        if (hasDropPoint) {
+            // put the grabbed tab roughly under the cursor, like Chrome
+            newWin.setBounds(
+                ensureBoundsAreVisible({ x: Math.round(screenX) - 120, y: Math.round(screenY) - 16, width, height })
+            );
+        }
         newWin.show();
     });
 });

@@ -272,3 +272,26 @@ func (svc *WorkspaceService) MoveTabToNewWindow(ctx context.Context, workspaceId
 	}()
 	return &MoveTabToNewWindowRtnType{WindowId: win.OID, SrcActiveTabId: srcActiveTabId}, updates, nil
 }
+
+func (svc *WorkspaceService) MoveTabToWorkspace_Meta() tsgenmeta.MethodMeta {
+	return tsgenmeta.MethodMeta{
+		ArgNames:   []string{"ctx", "workspaceId", "tabId", "dstWorkspaceId"},
+		ReturnDesc: "srcActiveTabId",
+	}
+}
+
+func (svc *WorkspaceService) MoveTabToWorkspace(ctx context.Context, workspaceId string, tabId string, dstWorkspaceId string) (string, waveobj.UpdatesRtnType, error) {
+	ctx = waveobj.ContextWithUpdates(ctx)
+	srcActiveTabId, err := wcore.MoveTabToWorkspace(ctx, workspaceId, tabId, dstWorkspaceId)
+	if err != nil {
+		return "", nil, fmt.Errorf("error moving tab to workspace: %w", err)
+	}
+	updates := waveobj.ContextGetUpdatesRtn(ctx)
+	go func() {
+		defer func() {
+			panichandler.PanicHandler("WorkspaceService:MoveTabToWorkspace:SendUpdateEvents", recover())
+		}()
+		wps.Broker.SendUpdateEvents(updates)
+	}()
+	return srcActiveTabId, updates, nil
+}

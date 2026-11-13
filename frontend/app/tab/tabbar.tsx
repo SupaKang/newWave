@@ -291,6 +291,9 @@ const TabBar = memo(({ workspace, noTabs }: TabBarProps) => {
             return false;
         }
         const rect = tabbarWrapperRef.current.getBoundingClientRect();
+        if (event.clientX < 0 || event.clientX > window.innerWidth) {
+            return true;
+        }
         return event.clientY > rect.bottom + TearOffDistance || event.clientY < rect.top - TearOffDistance;
     };
 

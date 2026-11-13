@@ -1,7 +1,7 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { getOrefMetaKeyAtom, globalStore, recordTEvent } from "@/app/store/global";
+import { getApi, getOrefMetaKeyAtom, globalStore, recordTEvent } from "@/app/store/global";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget } from "@/util/util";
 import { makeORef } from "../store/wos";
@@ -49,6 +49,7 @@ export function buildTabContextMenu(
             label: "Copy TabId",
             click: () => fireAndForget(() => navigator.clipboard.writeText(id)),
         },
+        { label: "Move Tab to New Window", click: () => getApi().moveTabToNewWindow(id, null, null) },
         { type: "separator" }
     );
     const tabORef = makeORef("tab", id);

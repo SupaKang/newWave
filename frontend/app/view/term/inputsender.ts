@@ -35,7 +35,7 @@ export class InputSender {
         this.pending = "";
         this.inFlight = true;
         this.send(data)
-            .catch((e) => console.log("error sending terminal input", e))
+            .catch((e) => console.warn("error sending terminal input", e))
             .finally(() => {
                 if (gen != this.generation) {
                     return;

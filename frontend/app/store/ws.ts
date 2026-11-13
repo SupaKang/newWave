@@ -137,6 +137,7 @@ class WSControl {
             dlog("connection error/disconnected");
         }
         if (this.open || this.opening) {
+            console.warn("[ws] disconnected", event.code, event.wasClean ? "clean" : "unclean");
             this.open = false;
             this.opening = false;
             this.reconnect();

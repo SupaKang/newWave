@@ -5,7 +5,7 @@ import { RpcApi } from "@/app/store/wshclientapi";
 import { adaptFromElectronKeyEvent, checkKeyPressed } from "@/util/keyutil";
 import { CHORD_TIMEOUT } from "@/util/sharedconst";
 import { fireAndForget } from "@/util/util";
-import { Rectangle, shell, WebContentsView } from "electron";
+import { dialog, Rectangle, shell, WebContentsView } from "electron";
 import { createNewWaveWindow, getWaveWindowById } from "emain/emain-window";
 import path from "path";
 import { configureAuthKeyRequestInjection } from "./authkey";
@@ -108,6 +108,8 @@ function computeBgColor(fullConfig: FullConfigType): string {
     }
 }
 
+// an error thrown in a render loop would otherwise fill the log file
+const MaxFeLogLinesPerMinute = 60;
 const wcIdToWaveTabMap = new Map<number, WaveTabView>();
 
 export function getWaveTabViewByWebContentsId(webContentsId: number): WaveTabView {
@@ -132,6 +134,9 @@ export class WaveTabView extends WebContentsView {
     isWaveReady: boolean = false;
     isDestroyed: boolean = false;
     keyboardChordMode: boolean = false;
+    feLogWindowStart: number = 0;
+    feLogCount: number = 0;
+    hangDialogAbort: AbortController = null;
     resetChordModeTimeout: NodeJS.Timeout = null;
 
     constructor(fullConfig: FullConfigType) {
@@ -169,6 +174,59 @@ export class WaveTabView extends WebContentsView {
             wcIdToWaveTabMap.delete(wcId);
             removeWaveTabView(this.waveTabId);
             this.isDestroyed = true;
+        });
+        // renderer warnings/errors are otherwise lost; waveapp.log is the only thing left to read after a hang or glitch
+        this.webContents.on("console-message", (e) => {
+            if (e.level != "warning" && e.level != "error") {
+                return;
+            }
+            const now = Date.now();
+            if (now - this.feLogWindowStart > 60 * 1000) {
+                this.feLogWindowStart = now;
+                this.feLogCount = 0;
+            }
+            if (++this.feLogCount > MaxFeLogLinesPerMinute) {
+                return;
+            }
+            const src = e.sourceId ? ` (${path.basename(e.sourceId)}:${e.lineNumber})` : "";
+            console.log(`[fe:${this.waveTabId?.substring(0, 8) ?? "spare"}] ${e.level}: ${e.message.substring(0, 1000)}${src}`);
+        });
+        // a hung (not crashed) renderer never recovers on its own; shells live in wavesrv, so killing it only loses the view
+        this.webContents.on("unresponsive", () => {
+            if (this.waveTabId == null || this.hangDialogAbort != null) {
+                return;
+            }
+            console.log("tab renderer unresponsive", this.waveTabId);
+            const ww = getWaveWindowById(this.waveWindowId);
+            if (ww == null || !this.isActiveTab) {
+                this.webContents.forcefullyCrashRenderer();
+                return;
+            }
+            this.hangDialogAbort = new AbortController();
+            dialog
+                .showMessageBox(ww, {
+                    type: "warning",
+                    buttons: ["Wait", "Reload Tab"],
+                    defaultId: 1,
+                    cancelId: 0,
+                    title: "Tab Not Responding",
+                    message: "This tab is not responding.",
+                    detail: "Reloading redraws the tab. Running terminals keep running.",
+                    signal: this.hangDialogAbort.signal,
+                })
+                .then((result) => {
+                    this.hangDialogAbort = null;
+                    if (result.response == 1 && !this.isDestroyed) {
+                        this.webContents.forcefullyCrashRenderer();
+                    }
+                })
+                .catch(() => {
+                    this.hangDialogAbort = null;
+                });
+        });
+        this.webContents.on("responsive", () => {
+            console.log("tab renderer responsive again", this.waveTabId);
+            this.hangDialogAbort?.abort();
         });
         // a crashed renderer is not "destroyed", so without this the dead view stays cached and the tab is blank until restart
         this.webContents.on("render-process-gone", (_e, details) => {

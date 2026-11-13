@@ -88,6 +88,7 @@ type WshRpcInterface interface {
 	PathCommand(ctx context.Context, data PathCommandData) (string, error)
 	ConvertDocToPdfCommand(ctx context.Context, path string) (string, error)
 	CraftAppsListCommand(ctx context.Context) ([]CraftAppInfo, error)
+	ImportChromeBookmarksCommand(ctx context.Context) (int, error)
 	CraftAppInstallCommand(ctx context.Context, appId string) (string, error)
 	CraftAppRegisterMcpCommand(ctx context.Context, appId string) (string, error)
 	CraftAppLaunchCommand(ctx context.Context, data CommandCraftAppLaunchData) error

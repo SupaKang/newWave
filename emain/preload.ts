@@ -51,6 +51,7 @@ contextBridge.exposeInMainWorld("api", {
     switchWorkspace: (workspaceId) => ipcRenderer.send("switch-workspace", workspaceId),
     deleteWorkspace: (workspaceId) => ipcRenderer.send("delete-workspace", workspaceId),
     setActiveTab: (tabId) => ipcRenderer.send("set-active-tab", tabId),
+    moveTabToNewWindow: (tabId, screenX, screenY) => ipcRenderer.send("move-tab-to-new-window", tabId, screenX, screenY),
     createTab: () => ipcRenderer.send("create-tab"),
     closeTab: (workspaceId, tabId, confirmClose) => ipcRenderer.invoke("close-tab", workspaceId, tabId, confirmClose),
     setWindowInitStatus: (status) => ipcRenderer.send("set-window-init-status", status),

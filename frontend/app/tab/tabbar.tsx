@@ -20,6 +20,7 @@ import { WorkspaceSwitcher } from "./workspaceswitcher";
 
 const TabDefaultWidth = 130;
 const TabMinWidth = 100;
+const TearOffDistance = 60;
 const MacOSTrafficLightsWidth = 74;
 const MacOSTahoeTrafficLightsWidth = 80;
 
@@ -285,8 +286,17 @@ const TabBar = memo(({ workspace, noTabs }: TabBarProps) => {
         return newTabIndex;
     };
 
+    const isTearOff = (event: MouseEvent) => {
+        if (tabIds.length < 2 || !tabbarWrapperRef.current) {
+            return false;
+        }
+        const rect = tabbarWrapperRef.current.getBoundingClientRect();
+        return event.clientY > rect.bottom + TearOffDistance || event.clientY < rect.top - TearOffDistance;
+    };
+
     const handleMouseMove = (event: MouseEvent) => {
         const { tabId, ref, tabStartX } = draggingTabDataRef.current;
+        ref.current.style.opacity = isTearOff(event) ? "0.5" : "";
 
         let initialOffsetX = draggingTabDataRef.current.initialOffsetX;
         let totalScrollOffset = draggingTabDataRef.current.totalScrollOffset;
@@ -404,8 +414,22 @@ const TabBar = memo(({ workspace, noTabs }: TabBarProps) => {
         []
     );
 
-    const handleMouseUp = (_event: MouseEvent) => {
+    const handleMouseUp = (event: MouseEvent) => {
         const { tabIndex, dragged } = draggingTabDataRef.current;
+        if (isTearOff(event)) {
+            const tearTabId = draggingTabDataRef.current.tabId;
+            tabRefs.current.forEach((ref) => {
+                ref.current.style.zIndex = "0";
+                ref.current.style.opacity = "";
+                ref.current.classList.remove("animate");
+            });
+            setDraggingTab(null);
+            document.removeEventListener("mouseup", handleMouseUp);
+            document.removeEventListener("mousemove", handleMouseMove);
+            draggingRemovedRef.current = false;
+            env.electron.moveTabToNewWindow(tearTabId, event.screenX, event.screenY);
+            return;
+        }
 
         // Update the final position of the dragged tab
         const draggingTab = tabIds[tabIndex];

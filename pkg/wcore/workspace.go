@@ -483,3 +483,41 @@ func SetName(workspaceId string, name string) error {
 	wstore.DBUpdate(ctx, ws)
 	return nil
 }
+
+// MoveTabToNewWindow detaches tabId from srcWorkspaceId into a fresh unsaved workspace owned by a new window.
+// Blocks (and their running controllers) stay attached to the tab, so terminals keep running.
+// Returns the new window and the source workspace's new active tab id.
+func MoveTabToNewWindow(ctx context.Context, srcWorkspaceId string, tabId string, winSize *waveobj.WinSize) (*waveobj.Window, string, error) {
+	srcWs, err := GetWorkspace(ctx, srcWorkspaceId)
+	if err != nil {
+		return nil, "", fmt.Errorf("workspace %s not found: %w", srcWorkspaceId, err)
+	}
+	tabIdx := utilfn.FindStringInSlice(srcWs.TabIds, tabId)
+	if tabIdx == -1 {
+		return nil, "", fmt.Errorf("tab %s not found in workspace %s", tabId, srcWorkspaceId)
+	}
+	if len(srcWs.TabIds) < 2 {
+		return nil, "", fmt.Errorf("cannot move the only tab out of a workspace")
+	}
+	srcWs.TabIds = append(srcWs.TabIds[:tabIdx], srcWs.TabIds[tabIdx+1:]...)
+	if srcWs.ActiveTabId == tabId {
+		srcWs.ActiveTabId = srcWs.TabIds[max(0, min(tabIdx-1, len(srcWs.TabIds)-1))]
+	}
+	newWs := &waveobj.Workspace{
+		OID:         uuid.NewString(),
+		TabIds:      []string{tabId},
+		ActiveTabId: tabId,
+	}
+	if err := wstore.DBInsert(ctx, newWs); err != nil {
+		return nil, "", fmt.Errorf("error inserting workspace: %w", err)
+	}
+	if err := wstore.DBUpdate(ctx, srcWs); err != nil {
+		return nil, "", fmt.Errorf("error updating workspace: %w", err)
+	}
+	win, err := CreateWindow(ctx, winSize, newWs.OID)
+	if err != nil {
+		return nil, "", err
+	}
+	wps.Broker.Publish(wps.WaveEvent{Event: wps.Event_WorkspaceUpdate})
+	return win, srcWs.ActiveTabId, nil
+}

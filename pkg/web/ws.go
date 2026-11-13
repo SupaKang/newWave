@@ -195,6 +195,8 @@ func WriteLoop(conn *websocket.Conn, outputCh chan any, closeCh chan any, routeI
 					break
 				}
 			}
+			// the deadline set by the previous ping expires right at the next tick, so every write must refresh it
+			_ = conn.SetWriteDeadline(time.Now().Add(wsWriteWaitTimeout))
 			err = conn.WriteMessage(websocket.TextMessage, barr)
 			if err != nil {
 				conn.Close()

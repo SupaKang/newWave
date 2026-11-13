@@ -40,6 +40,7 @@ const previewElectronApi: ElectronApi = {
     switchWorkspace: (_workspaceId: string) => {},
     deleteWorkspace: (_workspaceId: string) => {},
     setActiveTab: (_tabId: string) => {},
+    moveTabToNewWindow: (_tabId: string, _screenX: number, _screenY: number) => {},
     createTab: () => {},
     closeTab: (_workspaceId: string, _tabId: string, _confirmClose: boolean) => Promise.resolve(false),
     setWindowInitStatus: (_status: "ready" | "wave-ready") => {},

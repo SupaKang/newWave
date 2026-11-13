@@ -832,6 +832,10 @@ func (ws *WshServer) ConvertDocToPdfCommand(ctx context.Context, path string) (s
 	return docconvert.ConvertToPdf(ctx, path)
 }
 
+func (ws *WshServer) ImportChromeBookmarksCommand(ctx context.Context) (int, error) {
+	return wconfig.ImportChromeBookmarks()
+}
+
 func (ws *WshServer) CraftAppsListCommand(ctx context.Context) ([]wshrpc.CraftAppInfo, error) {
 	return craftapps.ListApps(), nil
 }

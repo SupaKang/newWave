@@ -13,7 +13,8 @@ import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import type { TermViewModel } from "@/app/view/term/term-model";
 import { atoms, getOverrideConfigAtom, getSettingsPrefixAtom, WOS } from "@/store/global";
-import { fireAndForget, useAtomValueSafe } from "@/util/util";
+import { isWindows } from "@/util/platformutil";
+import { fireAndForget, isSshConnName, useAtomValueSafe } from "@/util/util";
 import { computeBgStyleFromMeta } from "@/util/waveutil";
 import { ISearchOptions } from "@xterm/addon-search";
 import clsx from "clsx";
@@ -301,6 +302,9 @@ const TerminalView = ({ blockId, model }: ViewComponentProps<TermViewModel>) => 
                 cursorStyle: termCursorStyle,
                 cursorBlink: termCursorBlink,
                 overviewRuler: { width: 6 },
+                // local shells and WSL run behind ConPTY, which redraws absolutely after a resize instead of reflowing
+                windowsPty:
+                    isWindows() && !isSshConnName(blockData?.meta?.connection) ? { backend: "conpty" } : undefined,
             },
             {
                 keydownHandler: model.handleTerminalKeydown.bind(model),

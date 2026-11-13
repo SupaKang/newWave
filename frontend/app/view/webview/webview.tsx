@@ -6,7 +6,9 @@ import { Search, useSearch } from "@/app/element/search";
 import { globalStore } from "@/app/store/jotaiStore";
 import { getSimpleControlShiftAtom } from "@/app/store/keymodel";
 import type { TabModel } from "@/app/store/tab-model";
+import { modalsModel } from "@/app/store/modalmodel";
 import { makeORef } from "@/app/store/wos";
+import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import {
     BlockHeaderSuggestionControl,
@@ -24,6 +26,9 @@ import { Atom, PrimitiveAtom, atom, useAtomValue, useSetAtom } from "jotai";
 import { Fragment, createRef, memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import "./webview.scss";
 import type { WebViewEnv } from "./webviewenv";
+
+// separate from the app UI session so sites never get the wavesrv auth header and "clear storage" never wipes app state
+export const WebDefaultPartition = "persist:web";
 
 // User agent strings for mobile emulation
 const USER_AGENT_IPHONE =
@@ -811,6 +816,18 @@ export class WebViewModel implements ViewModel {
                 type: "separator",
             },
             {
+                label: "Import Bookmarks from Chrome",
+                click: () =>
+                    fireAndForget(async () => {
+                        try {
+                            const count = await RpcApi.ImportChromeBookmarksCommand(TabRpcClient);
+                            modalsModel.pushModal("MessageModal", { children: `Imported ${count} Chrome bookmarks.` });
+                        } catch (e) {
+                            modalsModel.pushModal("MessageModal", { children: `Bookmark import failed: ${e}` });
+                        }
+                    }),
+            },
+            {
                 label: "Clear History",
                 click: () => this.clearHistory(),
             },
@@ -927,7 +944,7 @@ const WebView = memo(({ model, onFailLoad, blockRef, initialSrc }: WebViewProps)
     const zoomFactor = useAtomValue(env.getBlockMetaKeyAtom(model.blockId, "web:zoom")) || 1;
     const partitionOverride = useAtomValueSafe(model.partitionOverride);
     const metaPartition = useAtomValue(env.getBlockMetaKeyAtom(model.blockId, "web:partition"));
-    const webPartition = partitionOverride || metaPartition || undefined;
+    const webPartition = partitionOverride || metaPartition || WebDefaultPartition;
     const userAgentType = useAtomValue(model.userAgentType) || "default";
 
     // Determine user agent string based on type

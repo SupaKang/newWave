@@ -501,6 +501,12 @@ func GetVarCommand(w *wshutil.WshRpc, data wshrpc.CommandVarData, opts *wshrpc.R
 	return resp, err
 }
 
+// command "importchromebookmarks", wshserver.ImportChromeBookmarksCommand
+func ImportChromeBookmarksCommand(w *wshutil.WshRpc, opts *wshrpc.RpcOpts) (int, error) {
+	resp, err := sendRpcRequestCallHelper[int](w, "importchromebookmarks", nil, opts)
+	return resp, err
+}
+
 // command "jobcmdexited", wshserver.JobCmdExitedCommand
 func JobCmdExitedCommand(w *wshutil.WshRpc, data wshrpc.CommandJobCmdExitedData, opts *wshrpc.RpcOpts) error {
 	_, err := sendRpcRequestCallHelper[any](w, "jobcmdexited", data, opts)

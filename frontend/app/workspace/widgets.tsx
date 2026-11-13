@@ -4,7 +4,7 @@
 import { Tooltip } from "@/app/element/tooltip";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { useWaveEnv, WaveEnv, WaveEnvSubset } from "@/app/waveenv/waveenv";
-import { CraftAppBar } from "@/app/workspace/craftappbar";
+import { TermListFloatingWindow } from "@/app/workspace/termlist";
 import { shouldIncludeWidgetForWorkspace } from "@/app/workspace/widgetfilter";
 import { modalsModel } from "@/store/modalmodel";
 import { fireAndForget, isBlank, makeIconClass } from "@/util/util";
@@ -53,14 +53,27 @@ type WidgetPropsType = {
     widget: WidgetConfigType;
     mode: "normal" | "compact" | "supercompact";
     env: WidgetsEnv;
+    onPanelToggle?: (widget: WidgetConfigType, elem: HTMLElement) => void;
 };
 
-async function handleWidgetSelect(widget: WidgetConfigType, env: WidgetsEnv) {
+// widgets whose blockdef view is one of these open a floating panel instead of creating a block
+const PanelWidgetViews = new Set(["termlist"]);
+
+function handleWidgetSelect(
+    widget: WidgetConfigType,
+    env: WidgetsEnv,
+    e: React.MouseEvent<HTMLDivElement>,
+    onPanelToggle: WidgetPropsType["onPanelToggle"]
+) {
     const blockDef = widget.blockdef;
+    if (PanelWidgetViews.has(blockDef?.meta?.view)) {
+        onPanelToggle?.(widget, e.currentTarget);
+        return;
+    }
     env.createBlock(blockDef, widget.magnified);
 }
 
-const Widget = memo(({ widget, mode, env }: WidgetPropsType) => {
+const Widget = memo(({ widget, mode, env, onPanelToggle }: WidgetPropsType) => {
     const [isTruncated, setIsTruncated] = useState(false);
     const labelRef = useRef<HTMLDivElement>(null);
 
@@ -83,7 +96,7 @@ const Widget = memo(({ widget, mode, env }: WidgetPropsType) => {
                 mode === "supercompact" ? "text-sm" : "text-lg",
                 widget["display:hidden"] && "hidden"
             )}
-            divOnClick={() => handleWidgetSelect(widget, env)}
+            divOnClick={(e) => handleWidgetSelect(widget, env, e, onPanelToggle)}
         >
             <div style={{ color: widget.color }}>
                 <i className={makeIconClass(widget.icon, true, { defaultIcon: "browser" })}></i>
@@ -388,6 +401,10 @@ const Widgets = memo(() => {
     const appsButtonRef = useRef<HTMLDivElement>(null);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const settingsButtonRef = useRef<HTMLDivElement>(null);
+    const [termListAnchor, setTermListAnchor] = useState<HTMLElement>(null);
+    const togglePanel = useCallback((_widget: WidgetConfigType, elem: HTMLElement) => {
+        setTermListAnchor((prev) => (prev ? null : elem));
+    }, []);
 
     const checkModeNeeded = useCallback(() => {
         if (!containerRef.current || !measurementRef.current) return;
@@ -466,10 +483,10 @@ const Widgets = memo(() => {
                     <>
                         <div className="grid grid-cols-2 gap-0 w-full">
                             {widgets?.map((data, idx) => (
-                                <Widget key={`widget-${idx}`} widget={data} mode={mode} env={env} />
+                                <Widget key={`widget-${idx}`} widget={data} mode={mode} env={env} onPanelToggle={togglePanel} />
                             ))}
                         </div>
-                        <CraftAppBar />
+                        <div className="flex-grow" />
                         <div className="grid grid-cols-2 gap-0 w-full">
                             {env.isDev() || featureWaveAppBuilder ? (
                                 <div
@@ -507,9 +524,9 @@ const Widgets = memo(() => {
                 ) : (
                     <>
                         {widgets?.map((data, idx) => (
-                            <Widget key={`widget-${idx}`} widget={data} mode={mode} env={env} />
+                            <Widget key={`widget-${idx}`} widget={data} mode={mode} env={env} onPanelToggle={togglePanel} />
                         ))}
-                        <CraftAppBar />
+                        <div className="flex-grow" />
                         {env.isDev() || featureWaveAppBuilder ? (
                             <div
                                 ref={appsButtonRef}
@@ -573,6 +590,13 @@ const Widgets = memo(() => {
                     isOpen={isAppsOpen}
                     onClose={() => setIsAppsOpen(false)}
                     referenceElement={appsButtonRef.current}
+                />
+            )}
+            {termListAnchor && (
+                <TermListFloatingWindow
+                    isOpen={true}
+                    onClose={() => setTermListAnchor(null)}
+                    referenceElement={termListAnchor}
                 />
             )}
             {settingsButtonRef.current && (

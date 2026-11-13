@@ -21,6 +21,17 @@
             }
         }
     },
+    "defwidget@termlist": {
+        "display:order": -3.5,
+        "icon": "list-ul",
+        "label": "terms",
+        "description": "Terminal list",
+        "blockdef": {
+            "meta": {
+                "view": "termlist"
+            }
+        }
+    },
     "defwidget@web": {
         "display:order": -3,
         "icon": "globe",

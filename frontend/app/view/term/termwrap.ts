@@ -22,6 +22,7 @@ import { base64ToArray, fireAndForget } from "@/util/util";
 import { FitAddon } from "@xterm/addon-fit";
 import { SearchAddon } from "@xterm/addon-search";
 import { SerializeAddon } from "@xterm/addon-serialize";
+import { Unicode11Addon } from "@xterm/addon-unicode11";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { WebglAddon } from "@xterm/addon-webgl";
 import * as TermTypes from "@xterm/xterm";
@@ -89,6 +90,8 @@ export class TermWrap {
     mainFileSubject: SubjectWithRef<WSFileEventData>;
     loaded: boolean;
     heldData: Uint8Array[];
+    disposed: boolean = false;
+    webglRetried: boolean = false;
     handleResize_debounced: () => void;
     hasResized: boolean;
     multiInputCallback: (data: string) => void;
@@ -168,6 +171,9 @@ export class TermWrap {
         this.searchAddon = new SearchAddon();
         this.terminal.loadAddon(this.searchAddon);
         this.terminal.loadAddon(this.fitAddon);
+        // TUIs like Claude Code measure emoji as 2 cells (Unicode 11); the default v6 table says 1 and borders drift
+        this.terminal.loadAddon(new Unicode11Addon());
+        this.terminal.unicode.activeVersion = "11";
         this.terminal.loadAddon(this.serializeAddon);
         this.terminal.loadAddon(
             new WebLinksAddon(linkHandlers.activate, { hover: linkHandlers.hover, leave: linkHandlers.leave })
@@ -279,7 +285,7 @@ export class TermWrap {
         this.connectElem = connectElem;
         this.mainFileSubject = null;
         this.heldData = [];
-        this.handleResize_debounced = debounce(50, this.handleResize.bind(this));
+        this.handleResize_debounced = debounce(150, this.handleResize.bind(this));
         this.terminal.open(this.connectElem);
 
         // xterm sends composed text from a setTimeout(0) after compositionend, but a Windows IME can
@@ -376,6 +382,16 @@ export class TermWrap {
             const addon = new WebglAddon();
             this.webglContextLossDisposable = addon.onContextLoss(() => {
                 this.setTermRenderer("dom");
+                // one retry: a GPU reset is usually transient, and staying on the DOM renderer makes busy terminals lag
+                if (this.webglRetried || this.disposed) {
+                    return;
+                }
+                this.webglRetried = true;
+                setTimeout(() => {
+                    if (!this.disposed) {
+                        this.setTermRenderer("webgl");
+                    }
+                }, 2000);
             });
             this.terminal.loadAddon(addon);
             this.webglAddon = addon;
@@ -458,6 +474,7 @@ export class TermWrap {
     }
 
     dispose() {
+        this.disposed = true;
         this.promptMarkers.forEach((marker) => {
             try {
                 marker.dispose();
@@ -553,7 +570,7 @@ export class TermWrap {
                     this.terminal.resize(fileTermSize.cols, fileTermSize.rows);
                     didResize = true;
                 }
-                this.doTerminalWrite(cacheData, ptyOffset);
+                await this.doTerminalWrite(cacheData, ptyOffset);
                 if (didResize) {
                     this.terminal.resize(curTermSize.cols, curTermSize.rows);
                 }
@@ -565,7 +582,13 @@ export class TermWrap {
         );
         if (mainFile != null) {
             await this.doTerminalWrite(mainData, null);
+            // appends that arrived while loading sit in heldData and may overlap mainData; refetching the tail by offset avoids both loss and duplication
+            const { data: tailData } = await fetchWaveFile(zoneId, TermFileName, this.ptyOffset);
+            if (tailData?.byteLength > 0) {
+                await this.doTerminalWrite(tailData, null);
+            }
         }
+        this.heldData = [];
     }
 
     async resyncController(reason: string) {
@@ -607,6 +630,9 @@ export class TermWrap {
         if (this.dataBytesProcessed < MinDataProcessedForCache) {
             return;
         }
+        if (Date.now() - this.lastUpdated < 3000) {
+            return;
+        }
         const serializedOutput = this.serializeAddon.serialize();
         const termSize: TermSize = { rows: this.terminal.rows, cols: this.terminal.cols };
         console.log("idle timeout term", this.dataBytesProcessed, serializedOutput.length, termSize);
@@ -619,6 +645,9 @@ export class TermWrap {
     runProcessIdleTimeout() {
         setTimeout(() => {
             window.requestIdleCallback(() => {
+                if (this.disposed) {
+                    return;
+                }
                 this.processAndCacheData();
                 this.runProcessIdleTimeout();
             });

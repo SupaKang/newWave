@@ -244,3 +244,31 @@ func (svc *WorkspaceService) CloseTab(ctx context.Context, workspaceId string, t
 	}()
 	return rtn, updates, nil
 }
+
+type MoveTabToNewWindowRtnType struct {
+	WindowId       string `json:"windowid"`
+	SrcActiveTabId string `json:"srcactivetabid"`
+}
+
+func (svc *WorkspaceService) MoveTabToNewWindow_Meta() tsgenmeta.MethodMeta {
+	return tsgenmeta.MethodMeta{
+		ArgNames:   []string{"ctx", "workspaceId", "tabId", "winSize"},
+		ReturnDesc: "MoveTabToNewWindowRtn",
+	}
+}
+
+func (svc *WorkspaceService) MoveTabToNewWindow(ctx context.Context, workspaceId string, tabId string, winSize *waveobj.WinSize) (*MoveTabToNewWindowRtnType, waveobj.UpdatesRtnType, error) {
+	ctx = waveobj.ContextWithUpdates(ctx)
+	win, srcActiveTabId, err := wcore.MoveTabToNewWindow(ctx, workspaceId, tabId, winSize)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error moving tab to new window: %w", err)
+	}
+	updates := waveobj.ContextGetUpdatesRtn(ctx)
+	go func() {
+		defer func() {
+			panichandler.PanicHandler("WorkspaceService:MoveTabToNewWindow:SendUpdateEvents", recover())
+		}()
+		wps.Broker.SendUpdateEvents(updates)
+	}()
+	return &MoveTabToNewWindowRtnType{WindowId: win.OID, SrcActiveTabId: srcActiveTabId}, updates, nil
+}

@@ -679,6 +679,14 @@ export class WaveBrowserWindow extends BaseWindow {
         tabView.destroy();
     }
 
+    // the tab's renderer is bound to this window's workspace, so it is destroyed here and recreated in the new window
+    async detachTab(tabId: string, srcActiveTabId: string) {
+        if (this.activeTabView?.waveTabId == tabId && srcActiveTabId) {
+            await this.setActiveTab(srcActiveTabId, false);
+        }
+        this.removeTabView(tabId, true);
+    }
+
     destroy() {
         console.log("destroy win", this.waveWindowId);
         this.deleteAllowed = true;
@@ -797,6 +805,28 @@ ipcMain.handle("close-tab", async (event, workspaceId: string, tabId: string, co
     }
     await ww.queueCloseTab(tabId);
     return true;
+});
+
+ipcMain.on("move-tab-to-new-window", (event, tabId: string, screenX: number, screenY: number) => {
+    fireAndForget(async () => {
+        const ww = getWaveWindowByWebContentsId(event.sender.id);
+        if (ww == null) {
+            return;
+        }
+        const [width, height] = ww.getSize();
+        const rtn = await WorkspaceService.MoveTabToNewWindow(ww.workspaceId, tabId, { width, height });
+        if (rtn == null) {
+            return;
+        }
+        await ww.detachTab(tabId, rtn.srcactivetabid);
+        const winData = await WindowService.GetWindow(rtn.windowid);
+        const fullConfig = await RpcApi.GetFullConfigCommand(ElectronWshClient);
+        const newWin = await createBrowserWindow(winData, fullConfig, { unamePlatform, isPrimaryStartupWindow: false });
+        // put the grabbed tab roughly under the cursor, like Chrome
+        const pos = ensureBoundsAreVisible({ x: Math.round(screenX) - 120, y: Math.round(screenY) - 16, width, height });
+        newWin.setBounds(pos);
+        newWin.show();
+    });
 });
 
 ipcMain.on("switch-workspace", (event, workspaceId) => {

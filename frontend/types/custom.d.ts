@@ -112,6 +112,7 @@ declare global {
         switchWorkspace: (workspaceId: string) => void; // switch-workspace
         deleteWorkspace: (workspaceId: string) => void; // delete-workspace
         setActiveTab: (tabId: string) => void; // set-active-tab
+        moveTabToNewWindow: (tabId: string, screenX: number, screenY: number) => void; // move-tab-to-new-window
         createTab: () => void; // create-tab
         closeTab: (workspaceId: string, tabId: string, confirmClose: boolean) => Promise<boolean>; // close-tab
         setWindowInitStatus: (status: "ready" | "wave-ready") => void; // set-window-init-status

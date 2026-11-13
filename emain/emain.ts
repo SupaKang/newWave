@@ -391,6 +391,9 @@ async function appMain() {
     console.log("wavesrv ready signal received", ready, Date.now() - startTs, "ms");
     await electronApp.whenReady();
     configureAuthKeyRequestInjection(electron.session.defaultSession);
+    // Google and others refuse sign-in from UAs that advertise Electron or an unknown app
+    const webSession = electron.session.fromPartition("persist:web");
+    webSession.setUserAgent(webSession.getUserAgent().replace(/ (newWave|Electron)\/\S+/g, ""));
     initIpcHandlers();
 
     await sleep(10); // wait a bit for wavesrv to be ready

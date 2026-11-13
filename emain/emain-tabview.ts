@@ -4,6 +4,7 @@
 import { RpcApi } from "@/app/store/wshclientapi";
 import { adaptFromElectronKeyEvent, checkKeyPressed } from "@/util/keyutil";
 import { CHORD_TIMEOUT } from "@/util/sharedconst";
+import { fireAndForget } from "@/util/util";
 import { Rectangle, shell, WebContentsView } from "electron";
 import { createNewWaveWindow, getWaveWindowById } from "emain/emain-window";
 import path from "path";
@@ -139,6 +140,7 @@ export class WaveTabView extends WebContentsView {
             webPreferences: {
                 preload: path.join(getElectronAppBasePath(), "preload", "index.cjs"),
                 webviewTag: true,
+                spellcheck: false,
             },
         });
         this.createdTs = Date.now();
@@ -167,6 +169,27 @@ export class WaveTabView extends WebContentsView {
             wcIdToWaveTabMap.delete(wcId);
             removeWaveTabView(this.waveTabId);
             this.isDestroyed = true;
+        });
+        // a crashed renderer is not "destroyed", so without this the dead view stays cached and the tab is blank until restart
+        this.webContents.on("render-process-gone", (_e, details) => {
+            if (details.reason == "clean-exit" || this.waveTabId == null) {
+                return;
+            }
+            console.log("tab renderer gone", this.waveTabId, details.reason);
+            const tabId = this.waveTabId;
+            const ww = getWaveWindowById(this.waveWindowId);
+            const wasActive = this.isActiveTab;
+            if (ww == null) {
+                this.destroy();
+                return;
+            }
+            if (wasActive) {
+                ww.activeTabView = null;
+            }
+            ww.removeTabView(tabId, true);
+            if (wasActive) {
+                fireAndForget(() => ww.setActiveTab(tabId, false));
+            }
         });
         this.setBackgroundColor(computeBgColor(fullConfig));
     }
@@ -197,6 +220,7 @@ export class WaveTabView extends WebContentsView {
     }
 
     positionTabOnScreen(winBounds: Rectangle) {
+        this.setVisible(true);
         const curBounds = this.getBounds();
         if (
             curBounds.width == winBounds.width &&
@@ -209,7 +233,13 @@ export class WaveTabView extends WebContentsView {
         this.setBounds({ x: 0, y: 0, width: winBounds.width, height: winBounds.height });
     }
 
+    // hidden (not just moved off-screen) so Chromium throttles timers/rendering of background tabs and their webviews
     positionTabOffScreen(winBounds: Rectangle) {
+        this.setVisible(false);
+        const curBounds = this.getBounds();
+        if (curBounds.x == -15000 && curBounds.width == winBounds.width && curBounds.height == winBounds.height) {
+            return;
+        }
         this.setBounds({
             x: -15000,
             y: -15000,

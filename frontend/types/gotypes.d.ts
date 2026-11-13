@@ -1112,6 +1112,12 @@ declare global {
         color: string;
     };
 
+    // workspaceservice.MoveTabToNewWindowRtnType
+    type MoveTabToNewWindowRtnType = {
+        windowid: string;
+        srcactivetabid: string;
+    };
+
     // waveobj.ORef
     type ORef = string;
 

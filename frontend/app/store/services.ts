@@ -201,6 +201,11 @@ export class WorkspaceServiceType {
         return callBackendService(this?.waveEnv, "workspace", "ListWorkspaces", Array.from(arguments))
     }
 
+    // @returns MoveTabToNewWindowRtn (and object updates)
+    MoveTabToNewWindow(workspaceId: string, tabId: string, winSize: WinSize): Promise<MoveTabToNewWindowRtnType> {
+        return callBackendService(this?.waveEnv, "workspace", "MoveTabToNewWindow", Array.from(arguments))
+    }
+
     // @returns object updates
     SetActiveTab(workspaceId: string, tabId: string): Promise<void> {
         return callBackendService(this?.waveEnv, "workspace", "SetActiveTab", Array.from(arguments))

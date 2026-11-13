@@ -504,6 +504,12 @@ export class RpcApiType {
         return client.wshRpcCall("getvar", data, opts);
     }
 
+    // command "importchromebookmarks" [call]
+    ImportChromeBookmarksCommand(client: WshClient, opts?: RpcOpts): Promise<number> {
+        if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "importchromebookmarks", null, opts);
+        return client.wshRpcCall("importchromebookmarks", null, opts);
+    }
+
     // command "jobcmdexited" [call]
     JobCmdExitedCommand(client: WshClient, data: CommandJobCmdExitedData, opts?: RpcOpts): Promise<void> {
         if (this.mockClient) return this.mockClient.mockWshRpcCall(client, "jobcmdexited", data, opts);

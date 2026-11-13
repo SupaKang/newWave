@@ -40,6 +40,8 @@ import * as React from "react";
 import { computeTheme, DefaultTermTheme, isLikelyOnSameHost, trimTerminalSelection } from "./termutil";
 import { TermWrap, WebGLSupported } from "./termwrap";
 
+const InputSendTimeoutMs = 3000;
+
 export class TermViewModel implements ViewModel {
     viewType: string;
     nodeModel: BlockNodeModel;
@@ -450,7 +452,13 @@ export class TermViewModel implements ViewModel {
         const b64data = stringToBase64(data);
         // the server handles each rpc in its own goroutine, so only one input may be in flight to keep keys in order
         this.inputSendChain = this.inputSendChain
-            .then(() => RpcApi.ControllerInputCommand(TabRpcClient, { blockid: this.blockId, inputdata64: b64data }))
+            .then(() =>
+                RpcApi.ControllerInputCommand(
+                    TabRpcClient,
+                    { blockid: this.blockId, inputdata64: b64data },
+                    { timeout: InputSendTimeoutMs }
+                )
+            )
             .catch((e) => console.log("error sending terminal input", this.blockId, e));
     }
 
@@ -640,6 +648,9 @@ export class TermViewModel implements ViewModel {
     }
 
     handleTerminalKeydown(event: KeyboardEvent): boolean {
+        if (event.isComposing || event.keyCode === 229) {
+            return true;
+        }
         const waveEvent = keyutil.adaptFromReactOrNativeKeyEvent(event);
         if (waveEvent.type != "keydown") {
             return true;

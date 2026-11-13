@@ -39,7 +39,7 @@ import {
     unameArch,
     unamePlatform,
 } from "./emain-platform";
-import { ensureHotSpareTab, setMaxTabCacheSize } from "./emain-tabview";
+import { applyTabCacheSettings, ensureHotSpareTab, startTabIdleEviction } from "./emain-tabview";
 import { getIsWaveSrvDead, getWaveSrvProc, getWaveSrvReady, runWaveSrv } from "./emain-wavesrv";
 import {
     createBrowserWindow,
@@ -82,6 +82,18 @@ console.log(
 );
 if (isDev) {
     console.log("waveterm-app WAVETERM_DEV set");
+}
+
+// grep "[mem]" in waveapp.log to see which process kind (tab renderers, webviews, GPU) holds the RAM
+function logMemoryUsage() {
+    const totals: Record<string, { count: number; mb: number }> = {};
+    for (const m of electronApp.getAppMetrics()) {
+        const t = (totals[m.type] ??= { count: 0, mb: 0 });
+        t.count++;
+        t.mb += m.memory.workingSetSize / 1024;
+    }
+    const parts = Object.entries(totals).map(([type, t]) => `${type}=${t.count}/${Math.round(t.mb)}MB`);
+    console.log("[mem]", parts.join(" "));
 }
 
 function handleWSEvent(evtMsg: WSEventType) {
@@ -409,6 +421,7 @@ async function appMain() {
     if (fullConfig?.settings?.["app:confirmquit"] != null) {
         confirmQuit = fullConfig.settings["app:confirmquit"];
     }
+    applyTabCacheSettings(fullConfig);
     ensureHotSpareTab(fullConfig);
     await relaunchBrowserWindows();
     setTimeout(runActiveTimer, 5000); // start active timer, wait 5s just to be safe
@@ -418,9 +431,8 @@ async function appMain() {
     makeDockTaskbar();
     await configureAutoUpdater();
     setGlobalIsStarting(false);
-    if (fullConfig?.settings?.["window:maxtabcachesize"] != null) {
-        setMaxTabCacheSize(fullConfig.settings["window:maxtabcachesize"]);
-    }
+    startTabIdleEviction();
+    setInterval(logMemoryUsage, 10 * 60 * 1000);
 
     electronApp.on("activate", () => {
         const allWindows = getAllWaveWindows();

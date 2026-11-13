@@ -84,6 +84,7 @@ type SettingsType struct {
 	WebOpenLinksInternally bool   `json:"web:openlinksinternally,omitempty"`
 	WebDefaultUrl          string `json:"web:defaulturl,omitempty"`
 	WebDefaultSearch       string `json:"web:defaultsearch,omitempty"`
+	WebDiscardMinutes      *int64 `json:"web:discardminutes,omitempty" jsonschema_description:"Unload web pages hidden for this many minutes (reloaded when shown again); 0 disables"`
 
 	AutoUpdateClear         bool    `json:"autoupdate:*,omitempty"`
 	AutoUpdateEnabled       bool    `json:"autoupdate:enabled,omitempty"`
@@ -116,6 +117,8 @@ type SettingsType struct {
 	WindowNativeTitleBar                bool     `json:"window:nativetitlebar,omitempty"`
 	WindowDisableHardwareAcceleration   bool     `json:"window:disablehardwareacceleration,omitempty"`
 	WindowMaxTabCacheSize               int      `json:"window:maxtabcachesize,omitempty"`
+	WindowTabIdleUnloadMinutes          *int64   `json:"window:tabidleunloadminutes,omitempty" jsonschema_description:"Unload background tabs not viewed for this many minutes (shells keep running); 0 disables"`
+	WindowHotSpareTab                   *bool    `json:"window:hotsparetab,omitempty" jsonschema_description:"Keep one preloaded tab ready so new tabs open instantly (costs one renderer, ~100MB)"`
 	WindowMagnifiedBlockOpacity         *float64 `json:"window:magnifiedblockopacity,omitempty"`
 	WindowMagnifiedBlockSize            *float64 `json:"window:magnifiedblocksize,omitempty"`
 	WindowMagnifiedBlockBlurPrimaryPx   *int64   `json:"window:magnifiedblockblurprimarypx,omitempty"`

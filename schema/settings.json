@@ -150,6 +150,10 @@
         "web:defaultsearch": {
           "type": "string"
         },
+        "web:discardminutes": {
+          "type": "integer",
+          "description": "Unload web pages hidden for this many minutes (reloaded when shown again); 0 disables"
+        },
         "autoupdate:*": {
           "type": "boolean"
         },
@@ -231,6 +235,14 @@
         },
         "window:maxtabcachesize": {
           "type": "integer"
+        },
+        "window:tabidleunloadminutes": {
+          "type": "integer",
+          "description": "Unload background tabs not viewed for this many minutes (shells keep running); 0 disables"
+        },
+        "window:hotsparetab": {
+          "type": "boolean",
+          "description": "Keep one preloaded tab ready so new tabs open instantly (costs one renderer, ~100MB)"
         },
         "window:magnifiedblockopacity": {
           "type": "number"

@@ -1260,6 +1260,7 @@ declare global {
         "web:openlinksinternally"?: boolean;
         "web:defaulturl"?: string;
         "web:defaultsearch"?: string;
+        "web:discardminutes"?: number;
         "autoupdate:*"?: boolean;
         "autoupdate:enabled"?: boolean;
         "autoupdate:intervalms"?: number;
@@ -1286,6 +1287,8 @@ declare global {
         "window:nativetitlebar"?: boolean;
         "window:disablehardwareacceleration"?: boolean;
         "window:maxtabcachesize"?: number;
+        "window:tabidleunloadminutes"?: number;
+        "window:hotsparetab"?: boolean;
         "window:magnifiedblockopacity"?: number;
         "window:magnifiedblocksize"?: number;
         "window:magnifiedblockblurprimarypx"?: number;

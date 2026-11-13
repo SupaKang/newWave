@@ -503,6 +503,8 @@ export class WaveBrowserWindow extends BaseWindow {
         tabView.isActiveTab = true;
         if (oldActiveView != null) {
             oldActiveView.isActiveTab = false;
+            // idle unload measures time since the tab was last on screen, not since it was opened
+            oldActiveView.lastUsedTs = Date.now();
         }
         this.activeTabView = tabView;
         this.allLoadedTabViews.set(tabView.waveTabId, tabView);

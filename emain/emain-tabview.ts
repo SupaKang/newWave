@@ -264,11 +264,45 @@ export class WaveTabView extends WebContentsView {
 }
 
 let MaxCacheSize = 10;
+let TabIdleUnloadMs = 0;
+let HotSpareEnabled = true;
 const wcvCache = new Map<string, WaveTabView>();
+const TabIdleCheckIntervalMs = 60 * 1000;
 
-export function setMaxTabCacheSize(size: number) {
-    console.log("setMaxTabCacheSize", size);
-    MaxCacheSize = size;
+// re-read every check so settings changes apply without a restart
+export function applyTabCacheSettings(fullConfig: FullConfigType) {
+    const settings = fullConfig?.settings;
+    if (settings?.["window:maxtabcachesize"] != null) {
+        MaxCacheSize = settings["window:maxtabcachesize"];
+    }
+    TabIdleUnloadMs = (settings?.["window:tabidleunloadminutes"] ?? 0) * 60 * 1000;
+    HotSpareEnabled = settings?.["window:hotsparetab"] ?? true;
+    if (!HotSpareEnabled && HotSpareTab != null) {
+        HotSpareTab.destroy();
+        HotSpareTab = null;
+    }
+}
+
+function evictIdleTabViews() {
+    checkAndEvictCache();
+    if (TabIdleUnloadMs <= 0) {
+        return;
+    }
+    const now = Date.now();
+    for (const tabView of Array.from(wcvCache.values())) {
+        if (!tabView.isActiveTab && now - tabView.lastUsedTs > TabIdleUnloadMs) {
+            tryEvictEntry(tabView.waveTabId);
+        }
+    }
+}
+
+export function startTabIdleEviction() {
+    setInterval(() => {
+        fireAndForget(async () => {
+            applyTabCacheSettings(await RpcApi.GetFullConfigCommand(ElectronWshClient));
+            evictIdleTabViews();
+        });
+    }, TabIdleCheckIntervalMs);
 }
 
 export function getWaveTabView(waveTabId: string): WaveTabView | undefined {
@@ -406,6 +440,9 @@ let HotSpareTab: WaveTabView = null;
 
 export function ensureHotSpareTab(fullConfig: FullConfigType) {
     console.log("ensureHotSpareTab");
+    if (!HotSpareEnabled) {
+        return;
+    }
     if (HotSpareTab == null) {
         HotSpareTab = new WaveTabView(fullConfig);
     }

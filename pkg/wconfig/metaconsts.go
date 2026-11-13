@@ -53,6 +53,7 @@ const (
 	ConfigKey_WebOpenLinksInternally         = "web:openlinksinternally"
 	ConfigKey_WebDefaultUrl                  = "web:defaulturl"
 	ConfigKey_WebDefaultSearch               = "web:defaultsearch"
+	ConfigKey_WebDiscardMinutes              = "web:discardminutes"
 
 	ConfigKey_AutoUpdateClear                = "autoupdate:*"
 	ConfigKey_AutoUpdateEnabled              = "autoupdate:enabled"
@@ -85,6 +86,8 @@ const (
 	ConfigKey_WindowNativeTitleBar           = "window:nativetitlebar"
 	ConfigKey_WindowDisableHardwareAcceleration = "window:disablehardwareacceleration"
 	ConfigKey_WindowMaxTabCacheSize          = "window:maxtabcachesize"
+	ConfigKey_WindowTabIdleUnloadMinutes     = "window:tabidleunloadminutes"
+	ConfigKey_WindowHotSpareTab              = "window:hotsparetab"
 	ConfigKey_WindowMagnifiedBlockOpacity    = "window:magnifiedblockopacity"
 	ConfigKey_WindowMagnifiedBlockSize       = "window:magnifiedblocksize"
 	ConfigKey_WindowMagnifiedBlockBlurPrimaryPx = "window:magnifiedblockblurprimarypx"

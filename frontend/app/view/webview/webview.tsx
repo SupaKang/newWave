@@ -260,7 +260,7 @@ export class WebViewModel implements ViewModel {
     }
 
     get viewComponent(): ViewComponent {
-        return WebView;
+        return DiscardableWebView;
     }
 
     /**
@@ -1255,5 +1255,49 @@ const WebView = memo(({ model, onFailLoad, blockRef, initialSrc }: WebViewProps)
         </Fragment>
     );
 });
+
+// A <webview> keeps its own renderer process (often hundreds of MB) alive even while its tab is hidden.
+// Unmounting it frees that process; the current URL is already in block meta, so remounting restores the page
+// (cookies/logins survive in the persistent partition, in-page state like scroll position does not).
+function useDiscardWhenHidden(model: WebViewModel, minutes: number): boolean {
+    const [discarded, setDiscarded] = useState(false);
+    useEffect(() => {
+        if (!(minutes > 0)) {
+            setDiscarded(false);
+            return;
+        }
+        let timer: ReturnType<typeof setTimeout> = null;
+        const onVisibilityChange = () => {
+            clearTimeout(timer);
+            if (document.visibilityState == "visible") {
+                setDiscarded(false);
+                return;
+            }
+            timer = setTimeout(() => {
+                if (document.visibilityState == "hidden" && !globalStore.get(model.mediaPlaying)) {
+                    setDiscarded(true);
+                }
+            }, minutes * 60 * 1000);
+        };
+        onVisibilityChange();
+        document.addEventListener("visibilitychange", onVisibilityChange);
+        return () => {
+            clearTimeout(timer);
+            document.removeEventListener("visibilitychange", onVisibilityChange);
+        };
+    }, [model, minutes]);
+    return discarded;
+}
+
+const DiscardableWebView = memo((props: WebViewProps) => {
+    const env = useWaveEnv<WebViewEnv>();
+    const discardMinutes = useAtomValue(env.getSettingsKeyAtom("web:discardminutes")) ?? 10;
+    const discarded = useDiscardWhenHidden(props.model, discardMinutes);
+    if (discarded) {
+        return <div className="w-full h-full" />;
+    }
+    return <WebView {...props} />;
+});
+DiscardableWebView.displayName = "DiscardableWebView";
 
 export { WebView, WebViewPreviewFallback, getWebPreviewDisplayUrl };

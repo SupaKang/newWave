@@ -6,6 +6,7 @@ import { appHandleKeyDown } from "@/app/store/keymodel";
 import { modalsModel } from "@/app/store/modalmodel";
 import type { TabModel } from "@/app/store/tab-model";
 import { waveEventSubscribeSingle } from "@/app/store/wps";
+import { addWSReconnectHandler, removeWSReconnectHandler } from "@/app/store/ws";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { makeFeBlockRouteId } from "@/app/store/wshrouter";
 import { DefaultRouter, TabRpcClient } from "@/app/store/wshrpcutil";
@@ -38,6 +39,7 @@ import { boundNumber, fireAndForget, stringToBase64 } from "@/util/util";
 import * as jotai from "jotai";
 import * as React from "react";
 import { computeTheme, DefaultTermTheme, isLikelyOnSameHost, trimTerminalSelection } from "./termutil";
+import { InputSender } from "./inputsender";
 import { TermWrap, WebGLSupported } from "./termwrap";
 
 const InputSendTimeoutMs = 3000;
@@ -72,7 +74,8 @@ export class TermViewModel implements ViewModel {
     shellProcFullStatus: jotai.PrimitiveAtom<BlockControllerRuntimeStatus>;
     shellProcStatus: jotai.Atom<string>;
     shellProcStatusUnsubFn: () => void;
-    inputSendChain: Promise<void> = Promise.resolve();
+    inputSender: InputSender;
+    wsReconnectHandler: () => void;
     blockJobStatusAtom: jotai.PrimitiveAtom<BlockJobStatusData>;
     blockJobStatusVersionTs: number;
     blockJobStatusUnsubFn: () => void;
@@ -86,6 +89,15 @@ export class TermViewModel implements ViewModel {
     searchAtoms?: SearchAtoms;
 
     constructor({ blockId, nodeModel, tabModel }: ViewModelInitType) {
+        this.inputSender = new InputSender((data) =>
+            RpcApi.ControllerInputCommand(
+                TabRpcClient,
+                { blockid: blockId, inputdata64: stringToBase64(data) },
+                { timeout: InputSendTimeoutMs }
+            )
+        );
+        this.wsReconnectHandler = () => this.inputSender.reset();
+        addWSReconnectHandler(this.wsReconnectHandler);
         this.viewType = "term";
         this.blockId = blockId;
         this.tabModel = tabModel;
@@ -449,17 +461,7 @@ export class TermViewModel implements ViewModel {
     }
 
     sendDataToController(data: string) {
-        const b64data = stringToBase64(data);
-        // the server handles each rpc in its own goroutine, so only one input may be in flight to keep keys in order
-        this.inputSendChain = this.inputSendChain
-            .then(() =>
-                RpcApi.ControllerInputCommand(
-                    TabRpcClient,
-                    { blockid: this.blockId, inputdata64: b64data },
-                    { timeout: InputSendTimeoutMs }
-                )
-            )
-            .catch((e) => console.log("error sending terminal input", this.blockId, e));
+        this.inputSender.push(data);
     }
 
     setTermMode(mode: "term" | "vdom") {
@@ -542,6 +544,7 @@ export class TermViewModel implements ViewModel {
 
     dispose() {
         DefaultRouter.unregisterRoute(makeFeBlockRouteId(this.blockId));
+        removeWSReconnectHandler(this.wsReconnectHandler);
         this.shellProcStatusUnsubFn?.();
         this.blockJobStatusUnsubFn?.();
         this.termBPMUnsubFn?.();

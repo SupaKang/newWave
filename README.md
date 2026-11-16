@@ -1,3 +1,24 @@
+# newWave
+
+> **newWave is a fork of [Wave Terminal](https://github.com/wavetermdev/waveterm)** (Apache-2.0, © Command Line Inc.).
+> It is an independent, unofficial build and is not affiliated with or endorsed by the Wave Terminal team.
+> The original Wave Terminal README follows below, unchanged.
+
+## What this fork changes
+
+- **Lighter build** — removed unused features and dependencies; telemetry and auto-update are disabled.
+- **Terminal input reliability** — fixed input freezing when a response is lost, serialized input sending, and corrected Korean (IME) composition order.
+- **Tabs and windows** — drag a tab out into a new window or move it between windows; recover stuck tabs; on-screen log capture.
+- **Built-in web browser** — separate sessions per browser block and Chrome bookmark import.
+- **Document viewer** — drag and drop Office and HWP documents, with "open with" app selection.
+- **Workspace folders** — open a folder as a workspace.
+- **AI agent integration** — launch companion apps and connect AI agents through MCP.
+- **Memory** — unload hidden web blocks, clean up long-unseen tabs, optional pre-created tabs.
+
+Changed files are recorded in this repository's commit history. The original `LICENSE` and `NOTICE` are kept as-is.
+
+---
+
 <p align="center">
   <a href="https://www.waveterm.dev">
 	<picture>

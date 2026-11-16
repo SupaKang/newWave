@@ -1,3 +1,11 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./assets/wave-dark.png">
+    <source media="(prefers-color-scheme: light)" srcset="./assets/wave-light.png">
+    <img alt="newWave logo" src="./assets/wave-light.png" width="240">
+  </picture>
+</p>
+
 # newWave
 
 > **newWave is a fork of [Wave Terminal](https://github.com/wavetermdev/waveterm)** (Apache-2.0, © Command Line Inc.).
@@ -15,20 +23,11 @@
 - **AI agent integration** — launch companion apps and connect AI agents through MCP.
 - **Memory** — unload hidden web blocks, clean up long-unseen tabs, optional pre-created tabs.
 
-Changed files are recorded in this repository's commit history. The original `LICENSE` and `NOTICE` are kept as-is.
+Changed files are recorded in this repository's commit history. The original `LICENSE` and `NOTICE` are kept as-is. newWave uses its own logo; Wave Terminal names and logos belong to their owners.
 
 ---
 
-<p align="center">
-  <a href="https://www.waveterm.dev">
-	<picture>
-		<source media="(prefers-color-scheme: dark)" srcset="./assets/wave-dark.png">
-		<source media="(prefers-color-scheme: light)" srcset="./assets/wave-light.png">
-		<img alt="Wave Terminal Logo" src="./assets/wave-light.png" width="240">
-	</picture>
-  </a>
-  <br/>
-</p>
+<!-- original Wave Terminal logo removed: this fork uses its own logo -->
 
 # Wave Terminal
 
